@@ -40,15 +40,27 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
   useEffect(() => {
     if (uniqueColors.length > 0 && !uniqueColors.includes(activeColor)) {
       setActiveColor(uniqueColors[0]);
-    }
-  }, [puzzle.id]);
-
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Drag-to-draw state
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawMode, setDrawMode] = useState<'fill' | 'mark' | 'erase'>('fill');
+  const [activeTool, setActiveTool] = useState<'fill' | 'mark'>('fill');
 
   useEffect(() => {
     // Save to localStorage
     localStorage.setItem(`picross_${puzzle.id}`, JSON.stringify(grid));
   }, [grid, puzzle.id]);
+
+  useEffect(() => {
+    const handleMouseUp = () => setIsDrawing(false);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchend', handleMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, []);
 
   const handleVerify = () => {
     const currentPuzzleState: PuzzleGrid = grid.map(row => 
@@ -64,31 +76,60 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
     }
   };
 
-  const handleCellClick = (r: number, c: number, type: 'left' | 'right') => {
+  const interact = (r: number, c: number, isStart: boolean) => {
     setGrid(prev => {
       const newGrid = prev.map(row => [...row]);
       const currentCell = newGrid[r][c];
 
-      if (type === 'left') { // Left click: fill or empty
-        if (currentCell.state === 'filled' && currentCell.color === activeColor) {
-          newGrid[r][c] = { state: 'empty', color: null };
+      let currentDrawMode = drawMode;
+
+      if (isStart) {
+        setIsDrawing(true);
+        if (activeTool === 'mark') {
+          currentDrawMode = currentCell.state === 'marked' ? 'erase' : 'mark';
         } else {
-          newGrid[r][c] = { state: 'filled', color: activeColor };
+          currentDrawMode = (currentCell.state === 'filled' && currentCell.color === activeColor) ? 'erase' : 'fill';
         }
-      } else { // Right click: mark X
-        if (currentCell.state === 'marked') {
-          newGrid[r][c] = { state: 'empty', color: null };
-        } else {
-          newGrid[r][c] = { state: 'marked', color: null };
-        }
+        setDrawMode(currentDrawMode);
+      } else if (!isDrawing) {
+        return prev;
       }
+
+      if (currentDrawMode === 'erase') {
+        newGrid[r][c] = { state: 'empty', color: null };
+      } else if (currentDrawMode === 'mark') {
+        newGrid[r][c] = { state: 'marked', color: null };
+      } else if (currentDrawMode === 'fill') {
+        newGrid[r][c] = { state: 'filled', color: activeColor };
+      }
+
       return newGrid;
     });
   };
 
+  const handlePointerDown = (e: React.PointerEvent, r: number, c: number) => {
+    if (e.button === 2) return; // ignore right click for drag start
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId); // allow pointerenter on other elements
+    interact(r, c, true);
+  };
+
+  const handlePointerEnter = (e: React.PointerEvent, r: number, c: number) => {
+    interact(r, c, false);
+  };
+
   const handleContextMenu = (e: React.MouseEvent, r: number, c: number) => {
     e.preventDefault();
-    handleCellClick(r, c, 'right');
+    // Manual single right-click mark/erase for PC
+    setGrid(prev => {
+      const newGrid = prev.map(row => [...row]);
+      const currentCell = newGrid[r][c];
+      if (currentCell.state === 'marked') {
+        newGrid[r][c] = { state: 'empty', color: null };
+      } else {
+        newGrid[r][c] = { state: 'marked', color: null };
+      }
+      return newGrid;
+    });
   };
 
   // Render board
@@ -110,13 +151,36 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
         ))}
       </div>
 
-      <div className="overflow-auto max-w-full p-4 bg-slate-800 rounded-xl shadow-2xl">
+      {/* Tool Selector */}
+      <div className="flex gap-2 mb-4 bg-slate-800 p-1 rounded-xl">
+        <button 
+          onClick={() => setActiveTool('fill')}
+          className={clsx(
+            "px-6 py-2 rounded-lg font-bold transition-all",
+            activeTool === 'fill' ? "bg-indigo-500 text-white shadow-md" : "text-slate-400 hover:text-white"
+          )}
+        >
+          Pintar
+        </button>
+        <button 
+          onClick={() => setActiveTool('mark')}
+          className={clsx(
+            "px-6 py-2 rounded-lg font-bold transition-all",
+            activeTool === 'mark' ? "bg-red-500 text-white shadow-md" : "text-slate-400 hover:text-white"
+          )}
+        >
+          Marcar (X)
+        </button>
+      </div>
+
+      <div className="overflow-auto max-w-full p-4 bg-slate-800 rounded-xl shadow-2xl touch-none" style={{ touchAction: 'none' }}>
         <div 
-          className="grid gap-1"
+          className="grid gap-1 select-none"
           style={{ 
             gridTemplateColumns: `auto repeat(${width}, 2rem)`,
             gridTemplateRows: `auto repeat(${height}, 2rem)`
           }}
+          onContextMenu={e => e.preventDefault()}
         >
           {/* Top-left empty corner */}
           <div className="border-b-2 border-r-2 border-slate-600"></div>
@@ -161,10 +225,11 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
                 return (
                   <div
                     key={`cell-${rIndex}-${cIndex}`}
-                    onClick={() => handleCellClick(rIndex, cIndex, 'left')}
+                    onPointerDown={(e) => handlePointerDown(e, rIndex, cIndex)}
+                    onPointerEnter={(e) => handlePointerEnter(e, rIndex, cIndex)}
                     onContextMenu={(e) => handleContextMenu(e, rIndex, cIndex)}
                     className={clsx(
-                      "w-8 h-8 md:w-8 md:h-8 cursor-pointer flex items-center justify-center transition-colors border-slate-700/50 hover:bg-slate-700",
+                      "w-8 h-8 md:w-8 md:h-8 cursor-pointer flex items-center justify-center transition-colors border-slate-700/50 hover:bg-slate-700 touch-none",
                       "border-r border-b", // Base borders
                       isRightBorder ? "border-r-2 border-r-slate-400" : "",
                       isBottomBorder ? "border-b-2 border-b-slate-400" : "",
@@ -172,7 +237,7 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
                       cIndex === 0 ? "border-l border-l-slate-700/50" : ""
                     )}
                     style={{
-                      backgroundColor: cell.state === 'filled' && cell.color ? cell.color : 'transparent'
+                      backgroundColor: cell.state === 'filled' && cell.color ? cell.color : '#ffffff'
                     }}
                   >
                     {cell.state === 'marked' && (

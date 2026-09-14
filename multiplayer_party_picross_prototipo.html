@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Party Picross</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- PWA Manifest Placeholder -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"Party Picross","short_name":"Picross","start_url":".","display":"standalone","background_color":"#ffffff","theme_color":"#4f46e5"}'>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; touch-action: manipulation; }
+        
+        /* Grid Layouts to Ensure Perfect Alignment */
+        .board-container {
+            display: grid;
+            grid-template-columns: auto auto;
+            grid-template-rows: auto auto;
+            gap: 0;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        .corner-empty { grid-column: 1; grid-row: 1; }
+        
+        .top-hints-area { 
+            grid-column: 2; 
+            grid-row: 1; 
+            display: flex; 
+            align-items: flex-end;
+            margin-bottom: 2px;
+        }
+        
+        .left-hints-area { 
+            grid-column: 1; 
+            grid-row: 2; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-end;
+            margin-right: 2px;
+        }
+        
+        .grid-area { 
+            grid-column: 2; 
+            grid-row: 2; 
+            display: grid;
+            gap: 1px;
+            background-color: #94a3b8;
+            border: 2px solid #334155;
+            user-select: none;
+        }
+
+        .hints-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            width: 32px; /* Matches cell width */
+            gap: 1px;
+            align-items: center;
+        }
+
+        .hints-row {
+            display: flex;
+            justify-content: flex-end;
+            height: 32px; /* Matches cell height */
+            gap: 1px;
+            align-items: center;
+        }
+
+        .hint-block {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0px 0px 2px rgba(0,0,0,0.8);
+        }
+
+        .picross-cell {
+            background-color: #ffffff;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ef4444; 
+        }
+
+        .picross-cell.marked-x::after { content: '✖'; }
+        
+        @media (max-width: 600px) {
+            .picross-cell, .hints-col, .hints-row { width: 24px; height: 24px; }
+            .hint-block { width: 12px; height: 12px; font-size: 8px; }
+        }
+
+        .screen { display: none; }
+        .screen.active { display: flex; }
+        
+        .qr-wrapper img { margin: 0 auto; border: 8px solid white; border-radius: 8px; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-md p-4 flex justify-between items-center shrink-0 z-10">
+        <h1 class="text-2xl font-black tracking-tight italic"><i class="fa-solid fa-bolt text-yellow-400 mr-2"></i> PARTY PICROSS</h1>
+        <div class="flex items-center gap-2">
+            <button id="btn-leave" class="hidden bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg font-bold text-sm shadow-md transition">
+                <i class="fa-solid fa-arrow-left mr-1"></i> Regresar
+            </button>
+            <div id="room-badge" class="hidden bg-indigo-800 px-3 py-1 rounded-full font-bold text-sm">
+                Room: <span id="header-room-code">----</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow relative overflow-y-auto w-full">
+        
+        <div id="screen-home" class="screen active flex-col items-center justify-center p-6 min-h-full h-full bg-slate-100">
+            <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
+                <i class="fa-solid fa-gamepad text-6xl text-indigo-500 mb-6 drop-shadow-md"></i>
+                <h2 class="text-3xl font-bold mb-8">Join the Party!</h2>
+                
+                <div class="space-y-4 mb-8">
+                    <input type="text" id="player-name" placeholder="Enter your name..." class="w-full text-center text-lg p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none font-bold">
+                    <div class="flex gap-2">
+                        <input type="text" id="join-room-code" placeholder="4-Digit Code" maxlength="4" class="w-2/3 text-center text-xl uppercase tracking-widest p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none font-bold">
+                        <button id="btn-join" class="w-1/3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition shadow-md">JOIN</button>
+                    </div>
+                </div>
+
+                <div class="relative flex py-5 items-center">
+                    <div class="flex-grow border-t border-slate-300"></div>
+                    <span class="flex-shrink-0 mx-4 text-slate-400 font-bold text-sm">OR</span>
+                    <div class="flex-grow border-t border-slate-300"></div>
+                </div>
+
+                <button id="btn-host" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-lg font-bold py-4 rounded-xl transition shadow-lg flex items-center justify-center">
+                    <i class="fa-solid fa-users mr-2"></i> HOST A GAME
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-lobby" class="screen flex-col items-center p-6 min-h-full">
+            <div class="w-full max-w-4xl flex flex-col md:flex-row gap-6">
+                <!-- Host Details (Only visible to host) -->
+                <div id="host-controls" class="hidden bg-white p-6 rounded-2xl shadow-lg flex-1 text-center">
+                    <h3 class="text-xl font-bold text-slate-500 mb-2">Scan to Join</h3>
+                    <div id="qrcode" class="qr-wrapper mb-4 flex justify-center bg-slate-100 p-4 rounded-xl"></div>
+                    <div class="text-5xl font-black tracking-widest text-indigo-600 mb-6" id="display-room-code">----</div>
+                    
+                    <div class="mb-6 text-left">
+                        <label class="font-bold text-sm text-slate-600 mb-1 block">Number of Rounds:</label>
+                        <select id="rounds-select" class="w-full p-2 border rounded-lg font-bold">
+                            <option value="1">1 Round</option>
+                            <option value="3" selected>3 Rounds</option>
+                            <option value="5">5 Rounds</option>
+                        </select>
+                    </div>
+
+                    <button id="btn-start-game" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition shadow-md text-xl opacity-50 cursor-not-allowed" disabled>
+                        Start Game <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+
+                <!-- Player List -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg flex-1 flex flex-col">
+                    <h3 class="text-2xl font-bold mb-4 flex justify-between items-center">
+                        Players <span id="player-count" class="bg-indigo-100 text-indigo-800 text-sm py-1 px-3 rounded-full">0</span>
+                    </h3>
+                    <div id="lobby-players-list" class="flex-grow overflow-y-auto space-y-2 max-h-96">
+                        <!-- Players injected here -->
+                        <div class="text-center text-slate-400 italic py-8">Waiting for players...</div>
+                    </div>
+                    
+                    <div id="player-waiting-msg" class="hidden mt-6 text-center p-4 bg-yellow-50 text-yellow-700 rounded-xl font-bold border border-yellow-200">
+                        <i class="fa-solid fa-spinner fa-spin mr-2"></i> Waiting for host to start...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-voting" class="screen flex-col items-center justify-center p-6 min-h-full">
+            <h2 class="text-3xl font-black text-center mb-2">Vote for the Next Puzzle!</h2>
+            <p class="text-slate-500 mb-8 font-bold text-center">Round <span id="vote-round-num">1</span></p>
+
+            <div id="vote-options" class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+                <!-- Options injected here -->
+            </div>
+            
+            <div id="host-vote-controls" class="hidden mt-8">
+                <button id="btn-end-vote" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl transition shadow-lg text-lg">
+                    Lock Votes & Play
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-game" class="screen flex-col items-center p-4 min-h-full bg-slate-200 relative">
+            
+            <!-- Host Dashboard (Overlay for Host) -->
+            <div id="host-game-dashboard" class="hidden absolute inset-0 bg-white/95 z-20 flex-col items-center p-8 overflow-y-auto backdrop-blur-sm">
+                <h2 class="text-4xl font-black mb-8 text-indigo-600">Round in Progress</h2>
+                <div id="sudden-death-host-display" class="hidden text-6xl font-black text-red-500 mb-8 animate-pulse">
+                    <i class="fa-solid fa-skull"></i> <span id="sd-timer-host">60</span>s
+                </div>
+                <div class="w-full max-w-2xl bg-white p-6 rounded-2xl shadow-xl border-2 border-slate-100">
+                    <h3 class="text-xl font-bold mb-4">Live Status</h3>
+                    <div id="host-live-players" class="space-y-3">
+                        <!-- Player live status -->
+                    </div>
+                </div>
+                <button id="btn-force-end" class="mt-8 text-red-500 font-bold underline hover:text-red-700">Force End Round</button>
+            </div>
+
+            <!-- Player Game Area -->
+            <div id="player-game-area" class="w-full max-w-5xl flex flex-col items-center">
+                
+                <!-- Sudden Death Alert -->
+                <div id="sudden-death-alert" class="hidden w-full bg-red-500 text-white p-3 rounded-xl mb-4 text-center font-black text-xl shadow-lg flex items-center justify-center animate-bounce">
+                    <i class="fa-solid fa-stopwatch mr-2 text-2xl"></i> HURRY! <span id="sd-timer-player" class="ml-2">60</span>s REMAINING
+                </div>
+
+                <!-- Tools & Palette -->
+                <div class="w-full flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-md">
+                    <div id="palette-container" class="flex gap-2">
+                        <!-- Palette colors injected here -->
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border">
+                        <button id="tool-fill" class="px-4 py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-sm transition"><i class="fa-solid fa-paintbrush"></i> Fill</button>
+                        <button id="tool-mark" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 font-bold transition"><i class="fa-solid fa-xmark"></i> Mark</button>
+                    </div>
+                </div>
+
+                <!-- Game Board -->
+                <div class="bg-white p-4 md:p-8 rounded-2xl shadow-2xl overflow-auto max-w-full">
+                    <div class="board-container">
+                        <div class="corner-empty"></div>
+                        <div id="col-hints" class="top-hints-area"></div>
+                        <div id="row-hints" class="left-hints-area"></div>
+                        <div id="game-grid" class="grid-area"></div>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button id="btn-check-solution" class="mt-8 bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-xl font-black text-xl shadow-xl transition transform hover:scale-105 w-full max-w-xs">
+                    <i class="fa-solid fa-check mr-2"></i> SUBMIT
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-results" class="screen flex-col items-center p-6 min-h-full">
+            <h2 id="results-title" class="text-4xl font-black mb-2 text-center text-indigo-600">Round Results</h2>
+            <p id="results-subtitle" class="text-slate-500 mb-8 font-bold">Current Standings</p>
+
+            <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+                <div class="bg-indigo-50 p-4 border-b border-indigo-100 grid grid-cols-4 font-black text-indigo-800">
+                    <div class="col-span-1 text-center">Rank</div>
+                    <div class="col-span-2">Player</div>
+                    <div class="col-span-1 text-right">Score</div>
+                </div>
+                <div id="leaderboard-list" class="divide-y divide-slate-100">
+                    <!-- Leaderboard injected -->
+                </div>
+            </div>
+
+            <div id="host-next-controls" class="hidden mt-8">
+                <button id="btn-next-round" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-10 rounded-xl transition shadow-xl text-xl">
+                    Next Round <i class="fa-solid fa-forward ml-2"></i>
+                </button>
+            </div>
+            
+            <div id="final-winner-container" class="hidden mt-8 text-center flex-col items-center">
+                <i class="fa-solid fa-crown text-6xl text-yellow-400 mb-4 drop-shadow-md"></i>
+                <h3 class="text-3xl font-black text-slate-800 mb-8">Game Over!</h3>
+                <button onclick="window.location.reload()" class="bg-slate-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-700">Play Again</button>
+            </div>
+        </div>
+
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuration & Constants ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        let db, auth, currentUserId;
+        let unsubscribeRoom = null;
+        let isInitialized = false;
+
+        const POINTS_MAP = [100, 80, 60, 40, 20]; // 1st, 2nd, 3rd... others get 10
+        const SUDDEN_DEATH_DURATION = 60; // seconds
+
+        const pCol = {
+            E: '#ffffff', R: '#ef4444', Y: '#eab308', B: '#1f2937', 
+            W: '#92400e', G: '#22c55e', C: '#0ea5e9', P: '#f472b6'
+        };
+
+        const PUZZLES = {
+            heart: { name: "Heart", icon: "fa-heart", color: "text-red-500", data: ["EEEEEEEEEE","EERREERREE","ERRRRRRRRE","ERRRRRRRRE","ERRRRRRRRE","EERRRRRREE","EEERRRREEE","EEEERREEEE","EEEEEEEEEE","EEEEEEEEEE"] },
+            star: { name: "Star", icon: "fa-star", color: "text-yellow-400", data: ["EEEEEYEEEE","EEEEEYEEEE","EEYYYYYYEE","EEEYYYYEEE","EEEYYYYEEE","EEYYEEYYEE","EYYEEEEEYY","EEEEEEEEEE","EEEEEEEEEE","EEEEEEEEEE"] },
+            cat: { name: "Cat", icon: "fa-cat", color: "text-slate-700", data: ["EBEEEEEEBE","EBBEEEEBBE","EBBBBBBBBE","EBBPEEBPBE","EBBBBBBBBE","EEBBBBBBEE","EEBBBBBBEE","EBBBBBBBBE","EEEEEEEEEE","EEEEEEEEEE"] },
+            boat: { name: "Boat", icon: "fa-sailboat", color: "text-blue-500", data: ["EEEEEEEEEE","EEEEECEEEE","EEEECCCEEE","EEECCCCCEE","EECCCCCCCE","EWWWWWWWWE","EEWWWWWWEE","CCCCCCCCCC","CCCCCCCCCC","EEEEEEEEEE"] },
+            coffee: { name: "Coffee", icon: "fa-mug-hot", color: "text-amber-700", data: ["EEEEEEEEEE","EEEEEEEWEE","EERRREERRE","ERRRRRRERE","ERRRRRRERE","ERRRRRRREE","EERRRREEEE","EEEEEEEEEE","EEEEEEEEEE","EEEEEEEEEE"] },
+            cactus: { name: "Cactus", icon: "fa-tree", color: "text-green-500", data: ["EEEEGEEEEE","EGEEGEEEEE","EGGGGGEEEE","EEGGGEEEGE","EEGGGGGGGE","EEGGGEEEEE","EEWWWEEEEE","EEWWWEEEEE","EEEEEEEEEE","EEEEEEEEEE"] }
+        };
+
+        // --- Local State ---
+        let state = {
+            role: null, // 'host' or 'player'
+            roomId: null,
+            name: '',
+            roomData: null, // Mirrored from Firestore
+            
+            // Game variables
+            activeTool: 'fill',
+            activeColor: null,
+            palette: [],
+            gridSize: 10,
+            emptyColor: pCol.E,
+            playerGrid: [], // 2D array
+            isDrawing: false,
+            drawMode: null,
+            suddenDeathInterval: null
+        };
+
+        // --- DOM Elements ---
+        const screens = {
+            home: document.getElementById('screen-home'),
+            lobby: document.getElementById('screen-lobby'),
+            voting: document.getElementById('screen-voting'),
+            game: document.getElementById('screen-game'),
+            results: document.getElementById('screen-results')
+        };
+
+        // --- Initialization ---
+        async function init() {
+            if (!firebaseConfig) {
+                console.error("Firebase configuration missing.");
+                return;
+            }
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            try {
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUserId = auth.currentUser.uid;
+                setupEventListeners();
+                isInitialized = true;
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('btn-host').addEventListener('click', handleHostGame);
+            document.getElementById('btn-join').addEventListener('click', handleJoinGame);
+            document.getElementById('btn-start-game').addEventListener('click', startVotingPhase);
+            document.getElementById('btn-end-vote').addEventListener('click', startGamePhase);
+            document.getElementById('btn-check-solution').addEventListener('click', submitSolution);
+            document.getElementById('btn-force-end').addEventListener('click', endRound);
+            document.getElementById('btn-next-round').addEventListener('click', nextRoundLogic);
+            document.getElementById('btn-leave').addEventListener('click', handleLeaveRoom);
+            
+            // Game Tools
+            document.getElementById('tool-fill').addEventListener('click', () => setTool('fill'));
+            document.getElementById('tool-mark').addEventListener('click', () => setTool('mark'));
+            
+            document.addEventListener('mouseup', () => { state.isDrawing = false; });
+            document.addEventListener('mouseleave', () => { state.isDrawing = false; });
+            document.addEventListener('touchend', () => { state.isDrawing = false; });
+        }
+
+        function switchScreen(screenKey) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            screens[screenKey].classList.add('active');
+            
+            const leaveBtn = document.getElementById('btn-leave');
+            if(screenKey === 'home') {
+                leaveBtn.classList.add('hidden');
+                document.getElementById('room-badge').classList.add('hidden');
+            } else {
+                leaveBtn.classList.remove('hidden');
+            }
+        }
+        
+        async function handleLeaveRoom() {
+            if (unsubscribeRoom) {
+                unsubscribeRoom();
+                unsubscribeRoom = null;
+            }
+            
+            if (state.role === 'player' && state.roomId && currentUserId) {
+                try {
+                    const roomRef = getRoomRef(state.roomId);
+                    const docSnap = await getDoc(roomRef);
+                    if (docSnap.exists()) {
+                        const roomData = docSnap.data();
+                        const updatedPlayers = { ...roomData.players };
+                        delete updatedPlayers[currentUserId];
+                        await updateDoc(roomRef, { players: updatedPlayers });
+                    }
+                } catch(e) {
+                    console.error("Error leaving room:", e);
+                }
+            }
+            
+            if (state.suddenDeathInterval) {
+                clearInterval(state.suddenDeathInterval);
+                state.suddenDeathInterval = null;
+            }
+
+            state.role = null;
+            state.roomId = null;
+            state.roomData = null;
+            
+            switchScreen('home');
+        }
+
+        // --- Room Management (Firestore) ---
+        function getRoomRef(id) {
+            // STRICT RULE 1: /artifacts/{appId}/public/data/{collectionName}
+            return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', id);
+        }
+
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 6).toUpperCase();
+        }
+
+        async function handleHostGame() {
+            if (!isInitialized) return;
+            state.role = 'host';
+            state.roomId = generateRoomCode();
+            const roomRef = getRoomRef(state.roomId);
+            
+            const initialRoomData = {
+                roomId: state.roomId,
+                hostId: currentUserId,
+                state: 'lobby', // lobby, voting, playing, results
+                totalRounds: 3,
+                currentRound: 1,
+                players: {},
+                puzzleOptions: [],
+                currentPuzzle: null,
+                suddenDeathEndTime: null,
+                createdAt: Date.now()
+            };
+
+            await setDoc(roomRef, initialRoomData);
+            
+            document.getElementById('display-room-code').innerText = state.roomId;
+            document.getElementById('header-room-code').innerText = state.roomId;
+            document.getElementById('room-badge').classList.remove('hidden');
+            
+            // Generate QR Code
+            document.getElementById('qrcode').innerHTML = '';
+            new QRCode(document.getElementById("qrcode"), {
+                text: state.roomId,
+                width: 160,
+                height: 160,
+                colorDark : "#3730a3",
+                colorLight : "#f1f5f9"
+            });
+
+            document.getElementById('host-controls').classList.remove('hidden');
+            document.getElementById('host-vote-controls').classList.remove('hidden');
+            document.getElementById('host-next-controls').classList.remove('hidden');
+            document.getElementById('player-waiting-msg').classList.add('hidden');
+            
+            switchScreen('lobby');
+            listenToRoom(state.roomId);
+        }
+
+        async function handleJoinGame() {
+            if (!isInitialized) return;
+            const nameInput = document.getElementById('player-name').value.trim();
+            const codeInput = document.getElementById('join-room-code').value.trim().toUpperCase();
+            
+            if(!nameInput || !codeInput) return;
+
+            const btn = document.getElementById('btn-join');
+            const originalText = btn.innerText;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            try {
+                const roomRef = getRoomRef(codeInput);
+                const docSnap = await getDoc(roomRef);
+                
+                if (docSnap.exists()) {
+                    state.role = 'player';
+                    state.roomId = codeInput;
+                    state.name = nameInput;
+                    
+                    document.getElementById('header-room-code').innerText = state.roomId;
+                    document.getElementById('room-badge').classList.remove('hidden');
+                    document.getElementById('player-waiting-msg').classList.remove('hidden');
+                    document.getElementById('host-controls').classList.add('hidden');
+
+                    // Add player to room object
+                    const roomData = docSnap.data();
+                    const updatedPlayers = { ...roomData.players };
+                    updatedPlayers[currentUserId] = {
+                        name: nameInput,
+                        score: 0,
+                        vote: null,
+                        isReady: false,
+                        finishedTime: null,
+                        roundPosition: 0
+                    };
+
+                    await updateDoc(roomRef, { players: updatedPlayers });
+                    
+                    switchScreen('lobby');
+                    listenToRoom(state.roomId);
+                    btn.innerText = originalText;
+                } else {
+                    btn.innerText = 'Inválido';
+                    btn.classList.replace('bg-green-500', 'bg-red-500');
+                    setTimeout(() => {
+                        btn.innerText = 'JOIN';
+                        btn.classList.replace('bg-red-500', 'bg-green-500');
+                    }, 2000);
+                }
+            } catch (e) {
+                console.error("Join error:", e);
+                btn.innerText = 'Error';
+                setTimeout(() => btn.innerText = 'JOIN', 2000);
+            }
+        }
+
+        // --- Room Listener & State Sync ---
+        function listenToRoom(roomId) {
+            const roomRef = getRoomRef(roomId);
+            if (unsubscribeRoom) unsubscribeRoom();
+            
+            unsubscribeRoom = onSnapshot(roomRef, (snapshot) => {
+                if (!snapshot.exists()) {
+                    handleLeaveRoom();
+                    return;
+                }
+                const data = snapshot.data();
+                
+                const prevState = state.roomData ? state.roomData.state : null;
+                state.roomData = data;
+
+                syncLobbyUI();
+                syncVotingUI();
+                syncGameUI();
+                syncResultsUI();
+                handleSuddenDeath();
+
+                // Trigger screen changes if state changed
+                if (data.state !== prevState) {
+                    if (data.state === 'lobby') switchScreen('lobby');
+                    if (data.state === 'voting') {
+                        if(state.role === 'player') renderPlayerVoting();
+                        switchScreen('voting');
+                    }
+                    if (data.state === 'playing') {
+                        if(state.role === 'player') initGamePhase();
+                        if(state.role === 'host') document.getElementById('host-game-dashboard').classList.remove('hidden');
+                        switchScreen('game');
+                    }
+                    if (data.state === 'results') {
+                        buildLeaderboard();
+                        document.getElementById('host-game-dashboard').classList.add('hidden');
+                        switchScreen('results');
+                    }
+                }
+            }, (error) => {
+                console.error("Firestore listen error", error);
+            });
+        }
+
+        // --- Lobby Phase ---
+        function syncLobbyUI() {
+            if(state.roomData.state !== 'lobby') return;
+            const players = state.roomData.players;
+            const list = document.getElementById('lobby-players-list');
+            const count = Object.keys(players).length;
+            
+            document.getElementById('player-count').innerText = count;
+            
+            if (count > 0) {
+                list.innerHTML = Object.values(players).map(p => `
+                    <div class="bg-slate-50 border border-slate-100 p-3 rounded-lg font-bold text-lg flex items-center">
+                        <div class="w-8 h-8 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center mr-3">
+                            ${p.name.charAt(0).toUpperCase()}
+                        </div>
+                        ${p.name}
+                    </div>
+                `).join('');
+            }
+
+            if (state.role === 'host') {
+                const btn = document.getElementById('btn-start-game');
+                if (count > 0) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+
+        async function startVotingPhase() {
+            if(state.role !== 'host') return;
+            const rounds = parseInt(document.getElementById('rounds-select').value);
+            
+            // Pick 3 random puzzles
+            const keys = Object.keys(PUZZLES);
+            const shuffled = keys.sort(() => 0.5 - Math.random());
+            const options = shuffled.slice(0, 3);
+            
+            // Reset player states for new round
+            const updatedPlayers = { ...state.roomData.players };
+            for(let uid in updatedPlayers) {
+                updatedPlayers[uid].vote = null;
+                updatedPlayers[uid].finishedTime = null;
+                updatedPlayers[uid].roundPosition = 0;
+            }
+
+            await updateDoc(getRoomRef(state.roomId), {
+                state: 'voting',
+                totalRounds: rounds,
+                puzzleOptions: options,
+                players: updatedPlayers,
+                suddenDeathEndTime: null
+            });
+        }
+
+        // --- Voting Phase ---
+        function renderPlayerVoting() {
+            const optionsContainer = document.getElementById('vote-options');
+            optionsContainer.innerHTML = state.roomData.puzzleOptions.map(key => {
+                const p = PUZZLES[key];
+                return `
+                    <button onclick="submitVote('${key}')" class="vote-btn bg-white border-2 border-slate-200 hover:border-indigo-500 rounded-2xl p-6 flex flex-col items-center transition transform hover:scale-105 shadow-sm" data-key="${key}">
+                        <i class="fa-solid ${p.icon} text-6xl ${p.color} mb-4"></i>
+                        <span class="text-xl font-black text-slate-700">${p.name}</span>
+                        <div class="vote-count mt-4 bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-bold text-sm hidden">0 votes</div>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        window.submitVote = async function(key) {
+            if(state.role !== 'player' || state.roomData.state !== 'voting') return;
+            
+            // Highlight selected
+            document.querySelectorAll('.vote-btn').forEach(b => {
+                b.classList.remove('ring-4', 'ring-indigo-500', 'border-transparent');
+                if(b.dataset.key === key) b.classList.add('ring-4', 'ring-indigo-500', 'border-transparent');
+            });
+
+            const roomRef = getRoomRef(state.roomId);
+            const updatedPlayers = { ...state.roomData.players };
+            updatedPlayers[currentUserId].vote = key;
+            await updateDoc(roomRef, { players: updatedPlayers });
+        }
+
+        function syncVotingUI() {
+            if(state.roomData.state !== 'voting') return;
+            document.getElementById('vote-round-num').innerText = `${state.roomData.currentRound} / ${state.roomData.totalRounds}`;
+            
+            // Tally votes
+            const votes = {};
+            state.roomData.puzzleOptions.forEach(k => votes[k] = 0);
+            
+            Object.values(state.roomData.players).forEach(p => {
+                if(p.vote && votes[p.vote] !== undefined) votes[p.vote]++;
+            });
+
+            if (state.role === 'host') {
+                const optionsContainer = document.getElementById('vote-options');
+                optionsContainer.innerHTML = state.roomData.puzzleOptions.map(key => {
+                    const p = PUZZLES[key];
+                    return `
+                        <div class="bg-white border-2 border-slate-200 rounded-2xl p-6 flex flex-col items-center shadow-sm relative">
+                            <i class="fa-solid ${p.icon} text-6xl ${p.color} mb-4"></i>
+                            <span class="text-xl font-black text-slate-700">${p.name}</span>
+                            <div class="mt-4 bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full font-black text-lg">${votes[key]} Votes</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        async function startGamePhase() {
+            if(state.role !== 'host') return;
+            
+            // Determine winning vote
+            const votes = {};
+            state.roomData.puzzleOptions.forEach(k => votes[k] = 0);
+            Object.values(state.roomData.players).forEach(p => {
+                if(p.vote) votes[p.vote]++;
+            });
+            
+            let winningPuzzle = state.roomData.puzzleOptions[0];
+            let maxVotes = -1;
+            for(let k in votes) {
+                if(votes[k] > maxVotes) { maxVotes = votes[k]; winningPuzzle = k; }
+            }
+
+            await updateDoc(getRoomRef(state.roomId), {
+                state: 'playing',
+                currentPuzzle: winningPuzzle
+            });
+        }
+
+        // --- Game Phase ---
+        function initGamePhase() {
+            const puzzleKey = state.roomData.currentPuzzle;
+            const gridChars = PUZZLES[puzzleKey].data;
+            const targetGrid = gridChars.map(row => row.split('').map(c => pCol[c] || pCol.E));
+            
+            state.gridSize = 10;
+            state.playerGrid = Array(10).fill().map(()=>Array(10).fill(null));
+            
+            let colorSet = new Set();
+            for(let r=0; r<10; r++) {
+                for(let c=0; c<10; c++) {
+                     if (targetGrid[r][c] !== state.emptyColor) colorSet.add(targetGrid[r][c]);
+                }
+            }
+            state.palette = Array.from(colorSet);
+            if(state.palette.length > 0) state.activeColor = state.palette[0];
+            
+            // Build Palette UI
+            const paletteBox = document.getElementById('palette-container');
+            paletteBox.innerHTML = '';
+            state.palette.forEach(color => {
+                const btn = document.createElement('button');
+                btn.className = `w-10 h-10 rounded-full border-4 shadow-md transition transform hover:scale-110`;
+                btn.style.backgroundColor = color;
+                btn.style.borderColor = color === state.activeColor ? '#1e293b' : 'transparent';
+                btn.onclick = () => {
+                    state.activeColor = color;
+                    setTool('fill');
+                    updatePaletteUI();
+                };
+                paletteBox.appendChild(btn);
+            });
+            
+            setTool('fill');
+            renderPicrossBoard(targetGrid);
+            
+            // Reset check button
+            const checkBtn = document.getElementById('btn-check-solution');
+            checkBtn.disabled = false;
+            checkBtn.classList.remove('opacity-50');
+            checkBtn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> SUBMIT';
+        }
+
+        function setTool(toolName) {
+            state.activeTool = toolName;
+            const fillBtn = document.getElementById('tool-fill');
+            const markBtn = document.getElementById('tool-mark');
+            if(toolName === 'fill') {
+                fillBtn.className = "px-4 py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-sm transition";
+                markBtn.className = "px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 font-bold transition";
+            } else {
+                markBtn.className = "px-4 py-2 rounded-lg bg-red-500 text-white font-bold shadow-sm transition";
+                fillBtn.className = "px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 font-bold transition";
+            }
+        }
+
+        function updatePaletteUI() {
+            const btns = document.getElementById('palette-container').children;
+            for(let i=0; i<btns.length; i++) {
+                const color = state.palette[i];
+                btns[i].style.borderColor = color === state.activeColor ? '#1e293b' : 'transparent';
+            }
+        }
+
+        function getHintsLine(line) {
+            let hints = [];
+            let currentRun = 0;
+            let currentColor = null;
+            for (let c of line) {
+                if (c === state.emptyColor) {
+                    if (currentRun > 0) { hints.push({color: currentColor, count: currentRun}); currentRun = 0; }
+                    currentColor = null;
+                } else {
+                    if (c === currentColor) { currentRun++; } 
+                    else {
+                        if (currentRun > 0) hints.push({color: currentColor, count: currentRun});
+                        currentColor = c; currentRun = 1;
+                    }
+                }
+            }
+            if (currentRun > 0) hints.push({color: currentColor, count: currentRun});
+            if (hints.length === 0) return [];
+            return hints;
+        }
+
+        function renderPicrossBoard(targetGrid) {
+            let colHints = [], rowHints = [];
+            for (let x = 0; x < state.gridSize; x++) {
+                let col = [];
+                for (let y = 0; y < state.gridSize; y++) col.push(targetGrid[y][x]);
+                colHints.push(getHintsLine(col));
+            }
+            for (let y = 0; y < state.gridSize; y++) rowHints.push(getHintsLine(targetGrid[y]));
+
+            const colContainer = document.getElementById('col-hints');
+            colContainer.innerHTML = '';
+            for (let x = 0; x < state.gridSize; x++) {
+                const div = document.createElement('div');
+                div.className = 'hints-col';
+                if (colHints[x].length === 0) div.innerHTML = `<div class="hint-block" style="background:#cbd5e1;color:#64748b">0</div>`;
+                else colHints[x].forEach(h => {
+                    div.innerHTML += `<div class="hint-block" style="background:${h.color}">${h.count}</div>`;
+                });
+                colContainer.appendChild(div);
+            }
+
+            const rowContainer = document.getElementById('row-hints');
+            rowContainer.innerHTML = '';
+            for (let y = 0; y < state.gridSize; y++) {
+                const div = document.createElement('div');
+                div.className = 'hints-row';
+                if (rowHints[y].length === 0) div.innerHTML = `<div class="hint-block" style="background:#cbd5e1;color:#64748b">0</div>`;
+                else rowHints[y].forEach(h => {
+                    div.innerHTML += `<div class="hint-block" style="background:${h.color}">${h.count}</div>`;
+                });
+                rowContainer.appendChild(div);
+            }
+
+            const gridContainer = document.getElementById('game-grid');
+            gridContainer.style.gridTemplateColumns = `repeat(${state.gridSize}, min-content)`;
+            gridContainer.innerHTML = '';
+            
+            gridContainer.onmousedown = (e) => e.preventDefault();
+            
+            for (let y = 0; y < state.gridSize; y++) {
+                for (let x = 0; x < state.gridSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'picross-cell';
+                    
+                    const interact = (e, isStart) => {
+                        if(e.type==='mouseenter' && !state.isDrawing) return;
+                        if(e.type==='touchmove' && !state.isDrawing) return;
+                        // Basic touch support logic
+                        let clientX = e.clientX, clientY = e.clientY;
+                        if(e.touches && e.touches.length > 0) {
+                             clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+                        }
+                        
+                        let target = cell;
+                        if(e.type === 'touchmove') {
+                            const el = document.elementFromPoint(clientX, clientY);
+                            if(el && el.classList.contains('picross-cell')) target = el;
+                            else return;
+                        }
+                        
+                        const ty = target.dataset.y, tx = target.dataset.x;
+
+                        if (isStart) {
+                            state.isDrawing = true;
+                            const cur = state.playerGrid[ty][tx];
+                            if(state.activeTool === 'mark') state.drawMode = (cur==='X') ? 'erase' : 'mark';
+                            else state.drawMode = (cur===state.activeColor) ? 'erase' : 'fill';
+                        }
+                        if(!state.isDrawing) return;
+
+                        if (state.drawMode === 'erase') {
+                            state.playerGrid[ty][tx] = null;
+                            target.style.backgroundColor = '#ffffff';
+                            target.classList.remove('marked-x');
+                        } else if (state.drawMode === 'mark') {
+                            state.playerGrid[ty][tx] = 'X';
+                            target.style.backgroundColor = '#ffffff';
+                            target.classList.add('marked-x');
+                        } else if (state.drawMode === 'fill') {
+                            state.playerGrid[ty][tx] = state.activeColor;
+                            target.style.backgroundColor = state.activeColor;
+                            target.classList.remove('marked-x');
+                        }
+                    };
+
+                    cell.dataset.x = x; cell.dataset.y = y;
+                    
+                    // Mouse events
+                    cell.addEventListener('mousedown', (e) => interact(e, true));
+                    cell.addEventListener('mouseenter', (e) => interact(e, false));
+                    // Touch events
+                    cell.addEventListener('touchstart', (e) => { e.preventDefault(); interact(e, true); }, {passive: false});
+                    cell.addEventListener('touchmove', (e) => { e.preventDefault(); interact(e, false); }, {passive: false});
+                    
+                    cell.addEventListener('contextmenu', e => e.preventDefault());
+                    gridContainer.appendChild(cell);
+                }
+            }
+        }
+
+        async function submitSolution() {
+            if(state.role !== 'player' || state.roomData.state !== 'playing') return;
+            
+            const puzzleKey = state.roomData.currentPuzzle;
+            const targetGrid = PUZZLES[puzzleKey].data.map(row => row.split('').map(c => pCol[c] || pCol.E));
+            
+            let isWin = true;
+            for (let y = 0; y < state.gridSize; y++) {
+                for (let x = 0; x < state.gridSize; x++) {
+                    const expected = targetGrid[y][x];
+                    const actual = state.playerGrid[y][x];
+                    if (expected === state.emptyColor) {
+                        if (actual !== null && actual !== 'X') { isWin = false; break; }
+                    } else {
+                        if (actual !== expected) { isWin = false; break; }
+                    }
+                }
+            }
+
+            const btn = document.getElementById('btn-check-solution');
+            if (isWin) {
+                btn.disabled = true;
+                btn.classList.add('opacity-50');
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Finished!';
+                
+                // Determine position
+                let position = 1;
+                Object.values(state.roomData.players).forEach(p => {
+                    if(p.finishedTime) position++;
+                });
+
+                const roomRef = getRoomRef(state.roomId);
+                const updatedPlayers = { ...state.roomData.players };
+                updatedPlayers[currentUserId].finishedTime = Date.now();
+                updatedPlayers[currentUserId].roundPosition = position;
+                
+                let updateData = { players: updatedPlayers };
+                
+                // Trigger Sudden Death if first
+                if(position === 1 && !state.roomData.suddenDeathEndTime) {
+                    updateData.suddenDeathEndTime = Date.now() + (SUDDEN_DEATH_DURATION * 1000);
+                }
+
+                await updateDoc(roomRef, updateData);
+                
+                // If all finished, end round immediately (host or first player could do it, let's let whoever completes last trigger it or let the host loop handle it to avoid race conditions. Simplest: host handles it in their interval).
+            } else {
+                btn.classList.add('animate-bounce', 'bg-red-500');
+                btn.classList.remove('bg-green-500');
+                btn.innerHTML = '<i class="fa-solid fa-xmark mr-2"></i> Error in Image';
+                setTimeout(() => {
+                    btn.classList.remove('animate-bounce', 'bg-red-500');
+                    btn.classList.add('bg-green-500');
+                    btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> SUBMIT';
+                }, 1000);
+            }
+        }
+
+        // --- Host Dashboard & Sync ---
+        function syncGameUI() {
+            if(state.roomData.state !== 'playing') return;
+            
+            if(state.role === 'host') {
+                const list = document.getElementById('host-live-players');
+                list.innerHTML = Object.values(state.roomData.players).map(p => `
+                    <div class="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-xl">${p.name}</span>
+                        ${p.finishedTime 
+                            ? `<span class="text-green-500 font-black"><i class="fa-solid fa-check-circle mr-1"></i> Finished (#${p.roundPosition})</span>` 
+                            : `<span class="text-slate-400 font-bold"><i class="fa-solid fa-pen mr-1"></i> Solving...</span>`
+                        }
+                    </div>
+                `).join('');
+
+                // Check if everyone is finished
+                const allDone = Object.values(state.roomData.players).every(p => p.finishedTime);
+                if(allDone) {
+                    endRound(); // Auto end
+                }
+            }
+        }
+
+        function handleSuddenDeath() {
+            if (state.roomData.state !== 'playing' || !state.roomData.suddenDeathEndTime) {
+                document.getElementById('sudden-death-alert').classList.add('hidden');
+                document.getElementById('sudden-death-host-display').classList.add('hidden');
+                if(state.suddenDeathInterval) {
+                    clearInterval(state.suddenDeathInterval);
+                    state.suddenDeathInterval = null;
+                }
+                return;
+            }
+
+            if(state.role === 'host') document.getElementById('sudden-death-host-display').classList.remove('hidden');
+            if(state.role === 'player' && !state.roomData.players[currentUserId].finishedTime) {
+                document.getElementById('sudden-death-alert').classList.remove('hidden');
+            }
+
+            if(!state.suddenDeathInterval) {
+                state.suddenDeathInterval = setInterval(() => {
+                    const now = Date.now();
+                    const timeLeft = Math.max(0, Math.ceil((state.roomData.suddenDeathEndTime - now) / 1000));
+                    
+                    document.getElementById('sd-timer-player').innerText = timeLeft;
+                    document.getElementById('sd-timer-host').innerText = timeLeft;
+
+                    if(timeLeft <= 0) {
+                        clearInterval(state.suddenDeathInterval);
+                        state.suddenDeathInterval = null;
+                        if(state.role === 'host') endRound();
+                    }
+                }, 1000);
+            }
+        }
+
+        async function endRound() {
+            if(state.role !== 'host') return;
+            
+            // Calculate points and state update
+            const updatedPlayers = { ...state.roomData.players };
+            Object.values(updatedPlayers).forEach(p => {
+                if(p.finishedTime) {
+                    const pts = POINTS_MAP[p.roundPosition - 1] || 10;
+                    p.score += pts;
+                }
+            });
+
+            await updateDoc(getRoomRef(state.roomId), {
+                state: 'results',
+                players: updatedPlayers
+            });
+        }
+
+        // --- Results Phase ---
+        function syncResultsUI() {
+            // Checked within listenToRoom for screen switch
+        }
+
+        function buildLeaderboard() {
+            const playersArr = Object.values(state.roomData.players);
+            playersArr.sort((a, b) => b.score - a.score);
+
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = playersArr.map((p, index) => `
+                <div class="p-4 grid grid-cols-4 items-center ${index===0 ? 'bg-yellow-50' : ''}">
+                    <div class="col-span-1 text-center font-black text-2xl ${index===0 ? 'text-yellow-500' : 'text-slate-400'}">
+                        #${index + 1}
+                    </div>
+                    <div class="col-span-2 font-bold text-xl">${p.name}</div>
+                    <div class="col-span-1 text-right font-black text-2xl text-indigo-600">${p.score}</div>
+                </div>
+            `).join('');
+
+            const isFinal = state.roomData.currentRound >= state.roomData.totalRounds;
+            if(isFinal) {
+                document.getElementById('results-title').innerText = "Final Results";
+                document.getElementById('results-subtitle').innerText = "The Party is Over!";
+                document.getElementById('host-next-controls').classList.add('hidden');
+                document.getElementById('final-winner-container').classList.remove('hidden');
+                document.getElementById('final-winner-container').classList.add('flex');
+            } else {
+                document.getElementById('results-title').innerText = "Round Results";
+                document.getElementById('results-subtitle').innerText = `Completed Round ${state.roomData.currentRound}`;
+                if(state.role === 'host') document.getElementById('host-next-controls').classList.remove('hidden');
+            }
+        }
+
+        async function nextRoundLogic() {
+            if(state.role !== 'host') return;
+            const newRound = state.roomData.currentRound + 1;
+            
+            await updateDoc(getRoomRef(state.roomId), {
+                state: 'voting',
+                currentRound: newRound,
+                suddenDeathEndTime: null
+            });
+            startVotingPhase(); // Regenerate options and trigger state change
+        }
+
+        // Kickoff
+        init();
+
+    </script>
+</body>
+</html>
