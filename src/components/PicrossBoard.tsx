@@ -123,12 +123,12 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
 
           {/* Top Clues (Col clues) */}
           {colClues.map((clueArr, cIndex) => (
-            <div key={`col-${cIndex}`} className="flex flex-col justify-end items-center pb-1 border-b-2 border-slate-600 text-sm">
+            <div key={`col-${cIndex}`} className="flex flex-col justify-end items-center pb-1 gap-1 border-b-2 border-slate-600 text-sm">
               {clueArr.map((clue, idx) => (
                 <span 
                   key={idx} 
-                  className="font-bold" 
-                  style={{ color: clue.color === 'transparent' ? 'transparent' : clue.color }}
+                  className="font-bold w-5 h-5 flex items-center justify-center rounded-sm text-xs"
+                  style={clue.color === 'transparent' ? { color: 'transparent' } : { backgroundColor: clue.color, color: '#fff', textShadow: '0 0 2px #000' }}
                 >
                   {clue.count}
                 </span>
@@ -144,8 +144,8 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
                 {clueArr.map((clue, idx) => (
                   <span 
                     key={idx} 
-                    className="font-bold"
-                    style={{ color: clue.color === 'transparent' ? 'transparent' : clue.color }}
+                    className="font-bold w-5 h-5 flex items-center justify-center rounded-sm text-xs"
+                    style={clue.color === 'transparent' ? { color: 'transparent' } : { backgroundColor: clue.color, color: '#fff', textShadow: '0 0 2px #000' }}
                   >
                     {clue.count}
                   </span>
