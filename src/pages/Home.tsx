@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Play, Users } from 'lucide-react';
+import { Users, Gamepad2 } from 'lucide-react';
 import { useState } from 'react';
 import { createRoom, createRoomId, getLocalPlayerId, joinRoom } from '../lib/room';
 
@@ -12,105 +12,142 @@ export default function Home() {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Host Configuration
+  const [rounds, setRounds] = useState(3);
+  const [hostIsPlaying, setHostIsPlaying] = useState(true);
 
   const handleCreateRoom = async () => {
-    if (!name.trim()) {
-      setError("Ingresa tu nombre para crear la sala");
+    if (!name) {
+      setError('Por favor, ingresa tu apodo primero');
       return;
     }
     setLoading(true);
+    setError(null);
     try {
-      const roomId = createRoomId();
       const playerId = getLocalPlayerId();
-      await createRoom(roomId, playerId, name);
-      navigate(`/lobby/${roomId}`);
-    } catch (err) {
-      setError("Error al crear la sala");
-    } finally {
+      const newRoomId = createRoomId();
+      await createRoom(newRoomId, playerId, name, hostIsPlaying, rounds);
+      navigate(`/lobby/${newRoomId}`);
+    } catch (err: any) {
+      setError(err.message || 'Error al crear la sala');
       setLoading(false);
     }
   };
 
-  const handleJoinRoom = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      setError("Ingresa tu nombre para jugar");
+  const handleJoinRoom = async () => {
+    if (!name) {
+      setError('Por favor, ingresa tu apodo primero');
       return;
     }
-    if (pin.trim().length === 4) {
-      setLoading(true);
-      try {
-        const playerId = getLocalPlayerId();
-        await joinRoom(pin.trim(), playerId, name);
-        navigate(`/lobby/${pin.trim()}`);
-      } catch (err: any) {
-        setError(err.message || "Error al unirse");
-      } finally {
-        setLoading(false);
-      }
+    if (!pin || pin.length !== 4) {
+      setError('El PIN debe tener 4 caracteres');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const playerId = getLocalPlayerId();
+      await joinRoom(pin.toUpperCase(), playerId, name);
+      navigate(`/lobby/${pin.toUpperCase()}`);
+    } catch (err: any) {
+      setError(err.message || 'Error al unirse a la sala. Verifica el PIN.');
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center space-y-8">
-      <div className="text-center space-y-2">
-        <h1 className="text-4xl md:text-6xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
-          Color Picross
-        </h1>
-        <p className="text-xl text-slate-400">Party Game</p>
-      </div>
-
-      <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-2">
-          <label className="text-slate-400 font-bold ml-2">Tu Apodo</label>
-          <input 
-            type="text" 
-            placeholder="Ej. Juan..." 
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full bg-slate-800 border-2 border-slate-700 text-lg font-bold py-3 px-4 rounded-2xl focus:outline-none focus:border-purple-500 transition-colors"
-          />
+    <div className="flex-1 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
+        <div className="text-center mb-8">
+          <Gamepad2 size={64} className="mx-auto text-indigo-500 mb-4 drop-shadow-md" />
+          <h1 className="text-4xl font-black text-slate-800 tracking-tight italic">PARTY PICROSS</h1>
+          <p className="text-slate-500 font-bold mt-2">¡Únete a la fiesta!</p>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-500/20 text-red-300 font-bold rounded-xl text-center">
+          <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-600 rounded-xl font-bold text-sm text-center">
             {error}
           </div>
         )}
 
-        <button 
-          onClick={handleCreateRoom}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-purple-900/50 transition-all active:scale-95"
-        >
-          <Play size={24} />
-          <span>Crear Sala (Host)</span>
-        </button>
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-slate-600 mb-1 ml-2">Tu Apodo</label>
+            <input 
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ej. Pikachu, Juan..."
+              className="w-full bg-slate-50 border-2 border-slate-200 text-slate-800 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+          </div>
 
-        <div className="relative flex items-center py-2">
-          <div className="flex-grow border-t border-slate-700"></div>
-          <span className="flex-shrink-0 mx-4 text-slate-500 text-sm font-medium uppercase">o unirse</span>
-          <div className="flex-grow border-t border-slate-700"></div>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-1">Entrar a una sala</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.toUpperCase())}
+                  placeholder="PIN DE 4 LETRAS"
+                  maxLength={4}
+                  className="flex-1 w-0 bg-white border-2 border-slate-200 text-slate-800 rounded-xl px-4 py-3 font-black tracking-widest uppercase focus:outline-none focus:border-indigo-500"
+                />
+                <button 
+                  onClick={handleJoinRoom}
+                  disabled={loading}
+                  className="bg-green-500 hover:bg-green-600 text-white font-black px-6 py-3 rounded-xl transition-colors disabled:opacity-50 shadow-md"
+                >
+                  ENTRAR
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 font-bold text-sm">O CREA UNA SALA</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-1">Rondas</label>
+              <select 
+                value={rounds} 
+                onChange={e => setRounds(Number(e.target.value))}
+                className="w-full bg-white border-2 border-slate-200 text-slate-800 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-indigo-500"
+              >
+                <option value={1}>1 Ronda</option>
+                <option value={3}>3 Rondas</option>
+                <option value={5}>5 Rondas</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-1">Rol del Host</label>
+              <select 
+                value={hostIsPlaying ? 'play' : 'screen'} 
+                onChange={e => setHostIsPlaying(e.target.value === 'play')}
+                className="w-full bg-white border-2 border-slate-200 text-slate-800 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-indigo-500"
+              >
+                <option value="play">Jugar y competir</option>
+                <option value="screen">Solo ser pantalla (No juega)</option>
+              </select>
+            </div>
+
+            <button 
+              onClick={handleCreateRoom}
+              disabled={loading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 px-6 rounded-xl transition-transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Users size={24} />
+              <span>CREAR SALA COMO HOST</span>
+            </button>
+          </div>
         </div>
-
-        <form onSubmit={handleJoinRoom} className="space-y-3">
-          <input 
-            type="text" 
-            placeholder="PIN de 4 dígitos" 
-            maxLength={4}
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-            className="w-full bg-slate-800 border-2 border-slate-700 text-center text-2xl font-bold py-3 px-4 rounded-2xl focus:outline-none focus:border-pink-500 transition-colors tracking-widest"
-          />
-          <button 
-            type="submit"
-            disabled={pin.length !== 4 || loading}
-            className="w-full flex items-center justify-center gap-3 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-2xl transition-all active:scale-95"
-          >
-            <Users size={24} />
-            <span>Unirse a Sala</span>
-          </button>
-        </form>
       </div>
     </div>
   );
