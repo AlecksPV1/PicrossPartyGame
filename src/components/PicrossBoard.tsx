@@ -43,19 +43,26 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
     }
   }, [puzzle.id]);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   useEffect(() => {
     // Save to localStorage
     localStorage.setItem(`picross_${puzzle.id}`, JSON.stringify(grid));
-    
-    // Check win condition
+  }, [grid, puzzle.id]);
+
+  const handleVerify = () => {
     const currentPuzzleState: PuzzleGrid = grid.map(row => 
       row.map(cell => cell.state === 'filled' ? cell.color : null)
     );
     
     if (validatePuzzle(currentPuzzleState, puzzle.solution)) {
+      setErrorMsg(null);
       onComplete();
+    } else {
+      setErrorMsg('Aún hay errores en el tablero. ¡Revisa las pistas!');
+      setTimeout(() => setErrorMsg(null), 3000);
     }
-  }, [grid, puzzle.id, onComplete]);
+  };
 
   const handleCellClick = (r: number, c: number, type: 'left' | 'right') => {
     setGrid(prev => {
@@ -146,25 +153,51 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
               </div>
 
               {/* Grid Cells */}
-              {grid[rIndex].map((cell, cIndex) => (
-                <div
-                  key={`cell-${rIndex}-${cIndex}`}
-                  onClick={() => handleCellClick(rIndex, cIndex, 'left')}
-                  onContextMenu={(e) => handleContextMenu(e, rIndex, cIndex)}
-                  className="w-8 h-8 md:w-8 md:h-8 cursor-pointer rounded-sm flex items-center justify-center transition-colors border border-slate-700/50 hover:bg-slate-700"
-                  style={{
-                    backgroundColor: cell.state === 'filled' && cell.color ? cell.color : 'transparent'
-                  }}
-                >
-                  {cell.state === 'marked' && (
-                    <span className="text-slate-500 font-black text-xl leading-none select-none pointer-events-none">X</span>
-                  )}
-                </div>
-              ))}
+              {grid[rIndex].map((cell, cIndex) => {
+                // Add thicker borders for 5x5 sections to make it easier to read
+                const isRightBorder = (cIndex + 1) % 5 === 0 && cIndex !== width - 1;
+                const isBottomBorder = (rIndex + 1) % 5 === 0 && rIndex !== height - 1;
+                
+                return (
+                  <div
+                    key={`cell-${rIndex}-${cIndex}`}
+                    onClick={() => handleCellClick(rIndex, cIndex, 'left')}
+                    onContextMenu={(e) => handleContextMenu(e, rIndex, cIndex)}
+                    className={clsx(
+                      "w-8 h-8 md:w-8 md:h-8 cursor-pointer flex items-center justify-center transition-colors border-slate-700/50 hover:bg-slate-700",
+                      "border-r border-b", // Base borders
+                      isRightBorder ? "border-r-2 border-r-slate-400" : "",
+                      isBottomBorder ? "border-b-2 border-b-slate-400" : "",
+                      rIndex === 0 ? "border-t border-t-slate-700/50" : "",
+                      cIndex === 0 ? "border-l border-l-slate-700/50" : ""
+                    )}
+                    style={{
+                      backgroundColor: cell.state === 'filled' && cell.color ? cell.color : 'transparent'
+                    }}
+                  >
+                    {cell.state === 'marked' && (
+                      <span className="text-slate-500 font-black text-xl leading-none select-none pointer-events-none">X</span>
+                    )}
+                  </div>
+                );
+              })}
             </React.Fragment>
           ))}
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="mt-4 p-3 bg-red-500/20 text-red-300 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-bottom-2">
+          {errorMsg}
+        </div>
+      )}
+
+      <button 
+        onClick={handleVerify}
+        className="mt-8 px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-2xl shadow-lg shadow-green-900/50 transition-all active:scale-95"
+      >
+        ¡Terminé! Verificar
+      </button>
     </div>
   );
 }
