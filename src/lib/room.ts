@@ -1,4 +1,4 @@
-import { ref, set, get, onValue, update, remove, onDisconnect } from "firebase/database";
+import { ref, set, get, onValue, update, onDisconnect } from "firebase/database";
 import { db } from "./firebase";
 
 export interface Player {

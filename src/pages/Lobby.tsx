@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, Play, Crown } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
-import { RoomData, subscribeToRoom, getLocalPlayerId, startGame } from '../lib/room';
+import { type RoomData, subscribeToRoom, getLocalPlayerId, startGame } from '../lib/room';
 
 export default function Lobby() {
   const { roomId } = useParams();
