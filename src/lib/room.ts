@@ -20,6 +20,7 @@ export interface RoomData {
   currentRound: number;
   currentPuzzleId?: string | null;
   puzzleOptions?: string[];
+  playedPuzzles?: string[];
   suddenDeathEndTime?: number | null;
   players: Record<string, Player>;
   hostIsPlaying: boolean;
@@ -63,6 +64,7 @@ export async function createRoom(roomId: string, hostId: string, hostName: strin
     totalRounds: rounds,
     currentRound: 1,
     hostIsPlaying,
+    playedPuzzles: [],
     players
   };
 
@@ -110,31 +112,39 @@ export async function startGame(roomId: string, puzzleId: string) {
 }
 
 export async function startVoting(roomId: string) {
-  // Use actual level IDs from our levels list
-  const keys = PREDEFINED_LEVELS.map(l => l.id);
+  const roomRef = ref(db, `rooms/${roomId}`);
+  const snap = await get(roomRef);
+  
+  if (!snap.exists()) return;
+  const data = snap.val() as RoomData;
+  const played = data.playedPuzzles || [];
+  
+  // Use actual level IDs from our levels list, excluding played if possible
+  let keys = PREDEFINED_LEVELS.map(l => l.id).filter(id => !played.includes(id));
+  
+  // If we've played all available puzzles, just allow all of them again
+  if (keys.length === 0) {
+    keys = PREDEFINED_LEVELS.map(l => l.id);
+  }
+  
   const shuffled = keys.sort(() => 0.5 - Math.random());
   // Pick up to 3 options
   const options = shuffled.slice(0, 3);
   
-  const roomRef = ref(db, `rooms/${roomId}`);
-  
   // Reset player votes
-  const snap = await get(roomRef);
-  if (snap.exists()) {
-    const data = snap.val() as RoomData;
-    const players = { ...data.players };
-    for (const uid in players) {
-      players[uid].vote = null;
-      players[uid].finishedTime = null;
-      players[uid].roundPosition = 0;
-    }
-    await update(roomRef, {
-      state: 'voting',
-      puzzleOptions: options,
-      players,
-      suddenDeathEndTime: null
-    });
+  const players = { ...data.players };
+  for (const uid in players) {
+    players[uid].vote = null;
+    players[uid].finishedTime = null;
+    players[uid].roundPosition = 0;
   }
+  
+  await update(roomRef, {
+    state: 'voting',
+    puzzleOptions: options,
+    players,
+    suddenDeathEndTime: null
+  });
 }
 
 export async function submitPuzzle(roomId: string, playerId: string, finishedTime: number) {

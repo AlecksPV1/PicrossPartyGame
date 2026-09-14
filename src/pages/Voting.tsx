@@ -30,6 +30,22 @@ export default function Voting() {
     }
   }, [room?.state, roomId, navigate]);
 
+  // Check if everyone voted to auto-start (Host only)
+  useEffect(() => {
+    if (isHost && room?.state === 'voting') {
+      const players = Object.values(room.players);
+      const playingPlayers = players.filter(p => !p.isHost || room.hostIsPlaying);
+      const totalPlaying = playingPlayers.length;
+      
+      const votedCount = playingPlayers.filter(p => p.vote).length;
+      
+      // Auto-start if all players have voted
+      if (totalPlaying > 0 && votedCount === totalPlaying) {
+        handleEndVote();
+      }
+    }
+  }, [room, isHost]);
+
   // Host manages the countdown
   useEffect(() => {
     if (isHost && room?.state === 'voting') {
@@ -51,7 +67,7 @@ export default function Voting() {
   };
 
   const handleEndVote = async () => {
-    if (!roomId || !room) return;
+    if (!roomId || !room || room.state !== 'voting') return;
     
     // Tally votes
     const votes: Record<string, number> = {};
@@ -61,19 +77,31 @@ export default function Voting() {
       if (p.vote) votes[p.vote] = (votes[p.vote] || 0) + 1;
     });
 
-    let winningPuzzle = room.puzzleOptions?.[0] || 'level_1';
     let maxVotes = -1;
+    let topPuzzles: string[] = [];
+
     for (const k in votes) {
       if (votes[k] > maxVotes) {
         maxVotes = votes[k];
-        winningPuzzle = k;
+        topPuzzles = [k];
+      } else if (votes[k] === maxVotes) {
+        topPuzzles.push(k);
       }
+    }
+
+    // Tie-breaker: random from topPuzzles
+    const winningPuzzle = topPuzzles[Math.floor(Math.random() * topPuzzles.length)] || room.puzzleOptions?.[0] || 'level_1';
+
+    const playedPuzzles = room.playedPuzzles || [];
+    if (!playedPuzzles.includes(winningPuzzle)) {
+      playedPuzzles.push(winningPuzzle);
     }
 
     const roomRef = ref(db, `rooms/${roomId}`);
     await update(roomRef, {
       state: 'playing',
-      currentPuzzleId: winningPuzzle
+      currentPuzzleId: winningPuzzle,
+      playedPuzzles
     });
   };
 
