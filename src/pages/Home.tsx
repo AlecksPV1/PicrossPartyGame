@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Play, Users, Image as ImageIcon } from 'lucide-react';
+import { Play, Users } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Home() {

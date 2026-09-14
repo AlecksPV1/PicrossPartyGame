@@ -2,14 +2,8 @@ import { generateClues, type PicrossPuzzle, type PuzzleGrid } from './picross';
 
 const RED = '#ef4444';
 const GREEN = '#22c55e';
-const BLUE = '#3b82f6';
 const YELLOW = '#eab308';
-const BROWN = '#8b5cf6'; // Using purple for brown for now
 const BLACK = '#1e293b';
-
-// Helper to create empty grids
-const emptyGrid = (w: number, h: number): PuzzleGrid => 
-  Array(h).fill(null).map(() => Array(w).fill(null));
 
 // Heart Level (5x5)
 const heartGrid: PuzzleGrid = [

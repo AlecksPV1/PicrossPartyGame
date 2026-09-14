@@ -84,9 +84,7 @@ export default function PicrossBoard({ puzzle, onComplete }: PicrossBoardProps) 
     handleCellClick(r, c, 'right');
   };
 
-  // Find max clue lengths for grid sizing
-  const maxRowClues = Math.max(...rowClues.map(c => c.length));
-  const maxColClues = Math.max(...colClues.map(c => c.length));
+  // Render board
 
   return (
     <div className="flex flex-col items-center select-none touch-none">
