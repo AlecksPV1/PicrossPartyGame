@@ -1,5 +1,6 @@
 import { ref, set, get, onValue, update, onDisconnect } from "firebase/database";
 import { db } from "./firebase";
+import { PREDEFINED_LEVELS } from "./levels";
 
 export interface Player {
   id: string;
@@ -109,8 +110,10 @@ export async function startGame(roomId: string, puzzleId: string) {
 }
 
 export async function startVoting(roomId: string) {
-  const keys = ['heart', 'star', 'cat', 'boat', 'coffee', 'cactus'];
+  // Use actual level IDs from our levels list
+  const keys = PREDEFINED_LEVELS.map(l => l.id);
   const shuffled = keys.sort(() => 0.5 - Math.random());
+  // Pick up to 3 options
   const options = shuffled.slice(0, 3);
   
   const roomRef = ref(db, `rooms/${roomId}`);
