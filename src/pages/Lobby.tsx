@@ -1,19 +1,58 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Play } from 'lucide-react';
+import { ArrowLeft, Users, Play, Crown } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { useEffect, useState } from 'react';
+import { RoomData, subscribeToRoom, getLocalPlayerId, startGame } from '../lib/room';
 
 export default function Lobby() {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const [room, setRoom] = useState<RoomData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const isHost = true; // TODO: Implement proper host detection via Firebase
+  const localPlayerId = getLocalPlayerId();
 
-  const startGame = () => {
-    navigate(`/game/${roomId}`);
+  useEffect(() => {
+    if (!roomId) return;
+    const unsubscribe = subscribeToRoom(roomId, (data) => {
+      setRoom(data);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [roomId]);
+
+  useEffect(() => {
+    // If room state becomes 'playing', navigate to game
+    if (room?.state === 'playing') {
+      navigate(`/game/${roomId}`);
+    }
+  }, [room?.state, roomId, navigate]);
+
+  if (loading) {
+    return <div className="flex-1 flex items-center justify-center">Cargando sala...</div>;
+  }
+
+  if (!room) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center space-y-4">
+        <h2 className="text-2xl font-bold text-red-400">Sala no encontrada o cerrada</h2>
+        <button onClick={() => navigate('/')} className="px-6 py-2 bg-slate-700 rounded-xl">Volver al Inicio</button>
+      </div>
+    );
+  }
+
+  const isHost = room.hostId === localPlayerId;
+  const players = Object.values(room.players || {});
+
+  const handleStartGame = async () => {
+    if (isHost && roomId) {
+      // Pick a random puzzle for now (we'll add voting later)
+      await startGame(roomId, 'level_3'); 
+    }
   };
 
   return (
-    <div className="flex-1 flex flex-col pt-4">
+    <div className="flex-1 flex flex-col pt-4 pb-12">
       <div className="flex items-center justify-between mb-8">
         <button 
           onClick={() => navigate('/')}
@@ -34,7 +73,7 @@ export default function Lobby() {
           <h3 className="text-lg font-semibold mb-4">Invita a tus amigos</h3>
           <div className="bg-white p-4 rounded-2xl mb-4">
             <QRCodeSVG 
-              value={`${window.location.origin}/lobby/${roomId}`} 
+              value={`${window.location.origin}/?join=${roomId}`} 
               size={180}
               level="H"
             />
@@ -50,28 +89,34 @@ export default function Lobby() {
         <div className="md:flex-1 flex flex-col">
           <div className="flex items-center gap-2 mb-4">
             <Users className="text-purple-400" />
-            <h3 className="text-xl font-bold">Jugadores (1/8)</h3>
+            <h3 className="text-xl font-bold">Jugadores ({players.length}/8)</h3>
           </div>
           
-          <div className="flex-1 bg-slate-800 rounded-3xl border border-slate-700 p-4 space-y-2">
-            {/* Dummy player */}
-            <div className="flex items-center justify-between bg-slate-700/50 p-3 rounded-xl">
-              <span className="font-medium">Tú (Host)</span>
-              <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-lg">Listo</span>
-            </div>
-            <div className="flex items-center justify-center p-4 border-2 border-dashed border-slate-600 rounded-xl text-slate-500 h-20">
-              Esperando jugadores...
-            </div>
+          <div className="flex-1 bg-slate-800 rounded-3xl border border-slate-700 p-4 space-y-2 overflow-y-auto max-h-[400px]">
+            {players.map((p) => (
+              <div key={p.id} className="flex items-center justify-between bg-slate-700/50 p-3 rounded-xl border border-slate-600">
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-lg">{p.name} {p.id === localPlayerId ? "(Tú)" : ""}</span>
+                  {p.isHost && <Crown size={16} className="text-yellow-500" />}
+                </div>
+                <span className="text-xs bg-purple-500/20 text-purple-300 px-3 py-1 rounded-lg font-bold">En la sala</span>
+              </div>
+            ))}
           </div>
 
-          {isHost && (
+          {isHost ? (
             <button 
-              onClick={startGame}
-              className="mt-6 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-4 px-6 rounded-2xl shadow-lg transition-transform active:scale-95"
+              onClick={handleStartGame}
+              disabled={players.length < 1}
+              className="mt-6 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-4 px-6 rounded-2xl shadow-lg transition-transform active:scale-95 disabled:opacity-50"
             >
               <Play size={24} />
               <span>Empezar Partida</span>
             </button>
+          ) : (
+            <div className="mt-6 w-full text-center p-4 bg-slate-800 rounded-2xl text-slate-400 font-bold animate-pulse">
+              Esperando al Host para iniciar...
+            </div>
           )}
         </div>
       </div>
