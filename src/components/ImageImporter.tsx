@@ -32,13 +32,13 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
-  // Collage Mode State
   const [isCollage, setIsCollage] = useState(false);
   const [cols, setCols] = useState(2);
   const [rows, setRows] = useState(2);
   const [modSize, setModSize] = useState(10);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewRef = useRef<HTMLCanvasElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,46 +56,105 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !image) return;
+    const preview = previewRef.current;
+    if (!canvas || !preview || !image) return;
+    
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const pCtx = preview.getContext('2d');
+    if (!ctx || !pCtx) return;
 
-    // Clear canvas
+    // 1. Draw Original Image
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate draw dimensions
     const drawWidth = image.width * zoom;
     const drawHeight = image.height * zoom;
-    
-    // Center initially, plus offset
     const dx = (canvas.width - drawWidth) / 2 + offset.x;
     const dy = (canvas.height - drawHeight) / 2 + offset.y;
-
     ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
 
-    // Draw grid overlay
+    // Draw grid overlay on original
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
-
     if (isCollage) {
-      // Draw inner lines
       ctx.beginPath();
       for (let c = 1; c < cols; c++) {
         const x = (canvas.width / cols) * c;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
+        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
       }
       for (let r = 1; r < rows; r++) {
         const y = (canvas.height / rows) * r;
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
+        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
       }
       ctx.stroke();
     }
 
-  }, [image, zoom, offset, isCollage, cols, rows]);
+    // 2. Generate Real-time Pixel Art Preview
+    const targetW = isCollage ? cols * modSize : gridSize;
+    const targetH = isCollage ? rows * modSize : gridSize;
+    
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = targetW;
+    offCanvas.height = targetH;
+    const offCtx = offCanvas.getContext('2d');
+    if (!offCtx) return;
+
+    // Draw original view into mini canvas to downscale
+    offCtx.drawImage(canvas, 0, 0, 240, 240, 0, 0, targetW, targetH);
+    
+    // Clear preview canvas
+    pCtx.fillStyle = '#f8fafc';
+    pCtx.fillRect(0, 0, preview.width, preview.height);
+    
+    const imgData = offCtx.getImageData(0, 0, targetW, targetH).data;
+    const cellW = preview.width / targetW;
+    const cellH = preview.height / targetH;
+
+    for (let r = 0; r < targetH; r++) {
+      for (let c = 0; c < targetW; c++) {
+        const i = (r * targetW + c) * 4;
+        const R = imgData[i];
+        const G = imgData[i+1];
+        const B = imgData[i+2];
+        const A = imgData[i+3];
+
+        if (A > 128 && !(R > 240 && G > 240 && B > 240)) {
+          pCtx.fillStyle = quantizeColor(R, G, B);
+          pCtx.fillRect(c * cellW, r * cellH, cellW, cellH);
+        }
+      }
+    }
+
+    // Draw grid overlay on preview
+    pCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+    pCtx.lineWidth = 1;
+    pCtx.beginPath();
+    for (let c = 0; c <= targetW; c++) {
+      pCtx.moveTo(c * cellW, 0); pCtx.lineTo(c * cellW, preview.height);
+    }
+    for (let r = 0; r <= targetH; r++) {
+      pCtx.moveTo(0, r * cellH); pCtx.lineTo(preview.width, r * cellH);
+    }
+    pCtx.stroke();
+
+    // Thick lines for collage sections
+    if (isCollage) {
+      pCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+      pCtx.lineWidth = 2;
+      pCtx.beginPath();
+      for (let c = 1; c < cols; c++) {
+        const x = c * modSize * cellW;
+        pCtx.moveTo(x, 0); pCtx.lineTo(x, preview.height);
+      }
+      for (let r = 1; r < rows; r++) {
+        const y = r * modSize * cellH;
+        pCtx.moveTo(0, y); pCtx.lineTo(preview.width, y);
+      }
+      pCtx.stroke();
+    }
+
+  }, [image, zoom, offset, isCollage, cols, rows, modSize, gridSize]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!image) return;
@@ -233,17 +292,30 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
             </button>
           </div>
 
-          <div className="flex justify-center">
-            <canvas 
-              ref={canvasRef}
-              width={240} 
-              height={240} 
-              className="bg-white border-2 border-slate-300 rounded-lg cursor-move shadow-inner touch-none"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            />
+          <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
+            <div className="text-center">
+              <span className="text-xs font-bold text-slate-500 mb-1 block">Original</span>
+              <canvas 
+                ref={canvasRef}
+                width={240} 
+                height={240} 
+                className="bg-white border-2 border-slate-300 rounded-lg cursor-move shadow-inner touch-none"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              />
+            </div>
+            
+            <div className="text-center">
+              <span className="text-xs font-bold text-slate-500 mb-1 block">Pixel Art (Preview)</span>
+              <canvas 
+                ref={previewRef}
+                width={240} 
+                height={240} 
+                className="bg-white border-2 border-slate-300 rounded-lg shadow-inner"
+              />
+            </div>
           </div>
           
           <div>
