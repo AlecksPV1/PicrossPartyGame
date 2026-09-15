@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Upload, X, ZoomIn } from 'lucide-react';
+import { Upload, X, ZoomIn, Copy } from 'lucide-react';
+import { generateClues } from '../lib/picross';
 
 interface ImageImporterProps {
-  gridSize: number; // The target dimensions (e.g. 15 for 15x15)
+  gridSize: number; // The target dimensions (e.g. 15 for 15x15) - used for single mode
   onImport: (pixels: (string | null)[][], colors: string[]) => void;
 }
 
@@ -13,7 +14,7 @@ function rgbToHex(r: number, g: number, b: number) {
 
 // Simple color quantization (round to nearest block of colors)
 function quantizeColor(r: number, g: number, b: number) {
-  const step = 64; // Reduce color space (0, 64, 128, 192, 255)
+  const step = 64; 
   const qr = Math.round(r / step) * step;
   const qg = Math.round(g / step) * step;
   const qb = Math.round(b / step) * step;
@@ -30,6 +31,12 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  
+  // Collage Mode State
+  const [isCollage, setIsCollage] = useState(false);
+  const [cols, setCols] = useState(2);
+  const [rows, setRows] = useState(2);
+  const [modSize, setModSize] = useState(10);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -67,12 +74,28 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
 
     ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
 
-    // Draw an overlay square representing the crop area (center)
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-    ctx.lineWidth = 4;
+    // Draw grid overlay
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+    ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
 
-  }, [image, zoom, offset]);
+    if (isCollage) {
+      // Draw inner lines
+      ctx.beginPath();
+      for (let c = 1; c < cols; c++) {
+        const x = (canvas.width / cols) * c;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+      }
+      for (let r = 1; r < rows; r++) {
+        const y = (canvas.height / rows) * r;
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+      }
+      ctx.stroke();
+    }
+
+  }, [image, zoom, offset, isCollage, cols, rows]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!image) return;
@@ -94,33 +117,33 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
-  const processImage = () => {
+  const processSingle = () => {
     if (!image || !canvasRef.current) return;
-
-    // Create offscreen canvas exact size of puzzle grid
     const offCanvas = document.createElement('canvas');
     offCanvas.width = gridSize;
     offCanvas.height = gridSize;
     const ctx = offCanvas.getContext('2d');
     if (!ctx) return;
-
-    // We want to map the 240x240 view directly down to gridSize x gridSize
     ctx.drawImage(canvasRef.current, 0, 0, 240, 240, 0, 0, gridSize, gridSize);
+    const { newGrid, colorSet } = extractPixels(ctx, gridSize, gridSize);
+    onImport(newGrid, Array.from(colorSet));
+  };
 
-    const imgData = ctx.getImageData(0, 0, gridSize, gridSize).data;
+  const extractPixels = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    const imgData = ctx.getImageData(0, 0, w, h).data;
     const newGrid: (string | null)[][] = [];
     const colorSet = new Set<string>();
 
-    for (let r = 0; r < gridSize; r++) {
+    for (let r = 0; r < h; r++) {
       const row: (string | null)[] = [];
-      for (let c = 0; c < gridSize; c++) {
-        const i = (r * gridSize + c) * 4;
+      for (let c = 0; c < w; c++) {
+        const i = (r * w + c) * 4;
         const R = imgData[i];
         const G = imgData[i+1];
         const B = imgData[i+2];
         const A = imgData[i+3];
 
-        if (A > 128 && !(R > 240 && G > 240 && B > 240)) { // ignore transparent and pure white
+        if (A > 128 && !(R > 240 && G > 240 && B > 240)) {
           const hex = quantizeColor(R, G, B);
           row.push(hex);
           colorSet.add(hex);
@@ -130,13 +153,61 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
       }
       newGrid.push(row);
     }
+    return { newGrid, colorSet };
+  };
 
-    onImport(newGrid, Array.from(colorSet));
+  const processCollageAndExport = () => {
+    if (!image || !canvasRef.current) return;
+    const sectionWidth = 240 / cols;
+    const sectionHeight = 240 / rows;
+    
+    const sections = [];
+    
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = modSize;
+        offCanvas.height = modSize;
+        const ctx = offCanvas.getContext('2d');
+        if (!ctx) continue;
+        
+        // Draw just this section
+        const sx = c * sectionWidth;
+        const sy = r * sectionHeight;
+        ctx.drawImage(canvasRef.current, sx, sy, sectionWidth, sectionHeight, 0, 0, modSize, modSize);
+        
+        const { newGrid } = extractPixels(ctx, modSize, modSize);
+        const { rowClues, colClues } = generateClues(newGrid);
+        
+        sections.push({
+          row: r,
+          col: c,
+          solution: newGrid,
+          rowClues,
+          colClues
+        });
+      }
+    }
+
+    const data = {
+      type: "collage",
+      name: "Nuevo Collage",
+      modulesX: cols,
+      modulesY: rows,
+      moduleSize: modSize,
+      sections
+    };
+    
+    const json = JSON.stringify(data, null, 2);
+    navigator.clipboard.writeText(json);
+    alert("¡Collage copiado al portapapeles! " + cols * rows + " puzles generados.");
   };
 
   return (
     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mt-4 space-y-4">
-      <h3 className="font-bold text-slate-800 flex items-center gap-2"><Upload size={18} /> Importar Imagen</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2"><Upload size={18} /> Importar Imagen</h3>
+      </div>
       
       {!image ? (
         <div>
@@ -147,6 +218,21 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
         </div>
       ) : (
         <div className="space-y-4">
+          <div className="flex gap-2 p-1 bg-slate-200 rounded-lg">
+            <button 
+              onClick={() => setIsCollage(false)} 
+              className={`flex-1 text-sm font-bold py-1 rounded-md transition-colors ${!isCollage ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:bg-slate-300'}`}
+            >
+              Nivel Simple
+            </button>
+            <button 
+              onClick={() => setIsCollage(true)} 
+              className={`flex-1 text-sm font-bold py-1 rounded-md transition-colors ${isCollage ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:bg-slate-300'}`}
+            >
+              Modo Collage
+            </button>
+          </div>
+
           <div className="flex justify-center">
             <canvas 
               ref={canvasRef}
@@ -175,15 +261,46 @@ export default function ImageImporter({ gridSize, onImport }: ImageImporterProps
             />
           </div>
 
+          {isCollage && (
+            <div className="grid grid-cols-3 gap-2 bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Columnas</label>
+                <input type="number" min="1" max="10" value={cols} onChange={e => setCols(Number(e.target.value))} className="w-full rounded bg-white border border-slate-200 px-2 py-1 text-sm font-bold" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Filas</label>
+                <input type="number" min="1" max="10" value={rows} onChange={e => setRows(Number(e.target.value))} className="w-full rounded bg-white border border-slate-200 px-2 py-1 text-sm font-bold" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Tamaño px</label>
+                <select value={modSize} onChange={e => setModSize(Number(e.target.value))} className="w-full rounded bg-white border border-slate-200 px-2 py-1 text-sm font-bold">
+                  <option value={5}>5x5</option>
+                  <option value={10}>10x10</option>
+                  <option value={15}>15x15</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <button onClick={processImage} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl transition-colors">
-              Convertir a Pixel Art
-            </button>
+            {!isCollage ? (
+              <button onClick={processSingle} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl transition-colors">
+                Convertir a Pixel Art
+              </button>
+            ) : (
+              <button onClick={processCollageAndExport} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl transition-colors flex items-center justify-center gap-2">
+                <Copy size={18} /> Exportar Collage Completo
+              </button>
+            )}
             <button onClick={() => setImage(null)} className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl transition-colors">
               <X size={20} />
             </button>
           </div>
-          <p className="text-xs text-slate-500 text-center font-medium">Usa la imagen para autocompletar la cuadrícula. Luego podrás retocar los colores manualmente.</p>
+          <p className="text-xs text-slate-500 text-center font-medium">
+            {!isCollage 
+              ? "Usa la imagen para autocompletar la cuadrícula actual." 
+              : `Esto generará ${cols * rows} puzles de ${modSize}x${modSize} y copiará el JSON de todo el Collage al portapapeles.`}
+          </p>
         </div>
       )}
     </div>
