@@ -6,7 +6,7 @@ import clsx from 'clsx';
 type InteractiveCell = { state: 'empty' | 'marked' | 'filled', color: string | null };
 type InteractiveGrid = InteractiveCell[][];
 
-export default function PicrossBoard({ puzzle, onComplete }: { puzzle: PicrossPuzzle, onComplete: () => void }) {
+export default function PicrossBoard({ puzzle, onComplete, onChange }: { puzzle: PicrossPuzzle, onComplete: () => void, onChange?: (grid: (string | null)[][]) => void }) {
   const [grid, setGrid] = useState<InteractiveGrid>([]);
   const [activeColor, setActiveColor] = useState<string>('');
   
@@ -104,6 +104,10 @@ export default function PicrossBoard({ puzzle, onComplete }: { puzzle: PicrossPu
         newGrid[r][c] = { state: 'marked', color: null };
       } else if (currentDrawMode === 'fill') {
         newGrid[r][c] = { state: 'filled', color: activeColor };
+      }
+
+      if (onChange) {
+        onChange(newGrid.map(row => row.map(cell => cell.state === 'filled' ? cell.color : null)));
       }
 
       return newGrid;

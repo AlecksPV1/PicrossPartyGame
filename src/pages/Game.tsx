@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { type RoomData, subscribeToRoom, getLocalPlayerId } from '../lib/room';
 import { PREDEFINED_LEVELS } from '../lib/levels';
+import { COLLAGES } from '../lib/collages';
 import PicrossBoard from '../components/PicrossBoard';
 import { ref, update } from 'firebase/database';
 import { db } from '../lib/firebase';
@@ -29,10 +30,31 @@ export default function Game() {
     }
   }, [room?.state, roomId, navigate]);
 
-  const puzzle = useMemo(() => {
-    if (!room?.currentPuzzleId) return null;
-    return PREDEFINED_LEVELS.find(l => l.id === room.currentPuzzleId);
-  }, [room?.currentPuzzleId]);
+  const { puzzle, collage } = useMemo(() => {
+    if (!room?.currentPuzzleId) return { puzzle: null, collage: null };
+    
+    const normal = PREDEFINED_LEVELS.find(l => l.id === room.currentPuzzleId);
+    if (normal) return { puzzle: normal, collage: null };
+
+    const col = COLLAGES.find(c => c.id === room.currentPuzzleId);
+    if (col) {
+      const sectionIndex = room.collageAssignments?.[localPlayerId] ?? 0;
+      const section = col.sections[sectionIndex];
+      if (section) {
+        const p = {
+          id: `${col.id}_${section.row}_${section.col}`,
+          name: `${col.name} (Parte ${sectionIndex + 1})`,
+          width: col.moduleSize,
+          height: col.moduleSize,
+          solution: section.solution,
+          rowClues: section.rowClues,
+          colClues: section.colClues
+        };
+        return { puzzle: p, collage: col };
+      }
+    }
+    return { puzzle: null, collage: null };
+  }, [room?.currentPuzzleId, room?.collageAssignments, localPlayerId]);
 
   const isHost = room?.hostId === localPlayerId;
   const isSpectatingHost = isHost && !room?.hostIsPlaying;
@@ -46,8 +68,8 @@ export default function Game() {
     const totalPlaying = playingPlayers.length;
     const finishedCount = playingPlayers.filter(p => p.finishedTime).length;
     
-    // Check if we need to start sudden death (host only)
-    if (isHost && !room.suddenDeathEndTime && totalPlaying > 0 && finishedCount >= Math.ceil(totalPlaying / 2)) {
+    // Check if we need to start sudden death (host only) - Disabled in Collage Mode
+    if (!collage && isHost && !room.suddenDeathEndTime && totalPlaying > 0 && finishedCount >= Math.ceil(totalPlaying / 2)) {
       if (finishedCount < totalPlaying) {
         // Start sudden death (60s)
         const roomRef = ref(db, `rooms/${roomId}`);
@@ -76,7 +98,7 @@ export default function Game() {
     } else {
       setSdTimeLeft(null);
     }
-  }, [room, roomId, isHost]);
+  }, [room, roomId, isHost, collage]);
 
   const handleEndRound = async () => {
     if (!roomId || !room) return;
@@ -85,12 +107,14 @@ export default function Game() {
     const players = Object.values(room.players);
     const updatedPlayers = { ...room.players };
     
-    // 1st = 100, 2nd = 80, 3rd = 60, 4th = 40, else = 20
+    // Normal Mode Points
     const POINTS = [100, 80, 60, 40];
     
     players.forEach(p => {
       if (p.finishedTime && p.roundPosition) {
-        const pts = POINTS[p.roundPosition - 1] || 20;
+        let pts = POINTS[p.roundPosition - 1] || 20;
+        if (collage) pts = 100; // Co-op: everyone gets 100
+
         updatedPlayers[p.id].score += pts;
       } else if (!p.isHost || room.hostIsPlaying) {
         // Played but didn't finish
@@ -112,11 +136,13 @@ export default function Game() {
     const finishedCount = Object.values(room.players).filter(p => p.finishedTime).length;
     const position = finishedCount + 1;
     
-    const playerRef = ref(db, `rooms/${roomId}/players/${localPlayerId}`);
-    await update(playerRef, {
-      finishedTime: Date.now(),
-      roundPosition: position
-    });
+    await update(ref(db), { [`rooms/${roomId}/players/${localPlayerId}/finishedTime`]: Date.now(), [`rooms/${roomId}/players/${localPlayerId}/roundPosition`]: position });
+  };
+
+  const handleGridChange = (grid: (string | null)[][]) => {
+    if (!collage || !roomId || amIFinished) return;
+    // Only sync if it's a collage, so we don't spam for normal mode
+    update(ref(db), { [`rooms/${roomId}/players/${localPlayerId}/grid`]: grid });
   };
 
   if (!room || !puzzle) return <div className="flex-1 flex items-center justify-center font-bold text-slate-500">Cargando partida...</div>;
@@ -128,7 +154,7 @@ export default function Game() {
   if (isSpectatingHost) {
     return (
       <div className="flex-1 flex flex-col items-center p-6 bg-slate-50 min-h-screen pt-12">
-        <h2 className="text-4xl font-black mb-8 text-indigo-600">Ronda en Curso</h2>
+        <h2 className="text-4xl font-black mb-8 text-indigo-600">{collage ? 'Collage en Vivo' : 'Ronda en Curso'}</h2>
         
         {sdTimeLeft !== null && (
           <div className="text-6xl font-black text-red-500 mb-8 animate-pulse flex items-center gap-4">
@@ -137,24 +163,77 @@ export default function Game() {
           </div>
         )}
 
-        <div className="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-xl border-2 border-slate-100">
-          <h3 className="text-xl font-bold mb-4 text-slate-800">Estado en Vivo</h3>
-          <div className="space-y-3">
-            {Object.values(room.players)
-              .filter(p => !p.isHost) // Only show actual players
-              .sort((a, b) => (a.roundPosition || 999) - (b.roundPosition || 999))
-              .map(p => (
-              <div key={p.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="font-bold text-xl text-slate-800">{p.name}</span>
-                {p.finishedTime ? (
-                  <span className="text-green-500 font-black flex items-center gap-2"><CheckCircle /> ¡Terminó! (#{p.roundPosition})</span>
-                ) : (
-                  <span className="text-slate-400 font-bold flex items-center gap-2"><PenTool size={18} /> Resolviendo...</span>
-                )}
-              </div>
-            ))}
+        {collage ? (
+          <div className="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-xl border-2 border-slate-100 flex flex-col items-center">
+            <h3 className="text-xl font-bold mb-6 text-slate-800">Progreso Global</h3>
+            <div 
+              className="bg-slate-300 gap-px p-1"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${collage.modulesX * collage.moduleSize}, 24px)`,
+                gridTemplateRows: `repeat(${collage.modulesY * collage.moduleSize}, 24px)`
+              }}
+            >
+              {Array.from({ length: collage.modulesY * collage.moduleSize * collage.modulesX * collage.moduleSize }).map((_, i) => {
+                const totalCols = collage.modulesX * collage.moduleSize;
+                const R = Math.floor(i / totalCols);
+                const C = i % totalCols;
+
+                const sR = Math.floor(R / collage.moduleSize);
+                const sC = Math.floor(C / collage.moduleSize);
+                const lR = R % collage.moduleSize;
+                const lC = C % collage.moduleSize;
+
+                const sectionIndex = collage.sections.findIndex(s => s.row === sR && s.col === sC);
+                
+                // Find player assigned to this section
+                let assignedPlayer = null;
+                for (const uid in room.collageAssignments) {
+                  if (room.collageAssignments[uid] === sectionIndex) {
+                    assignedPlayer = room.players[uid];
+                    break;
+                  }
+                }
+
+                let color = null;
+                if (assignedPlayer) {
+                  if (assignedPlayer.finishedTime) {
+                    color = collage.sections[sectionIndex].solution[lR][lC];
+                  } else if (assignedPlayer.grid?.[lR]?.[lC]) {
+                    color = assignedPlayer.grid[lR][lC];
+                  }
+                }
+
+                return (
+                  <div 
+                    key={i} 
+                    className="w-full h-full bg-white transition-colors duration-300"
+                    style={{ backgroundColor: color || 'white' }}
+                  />
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-xl border-2 border-slate-100">
+            <h3 className="text-xl font-bold mb-4 text-slate-800">Estado en Vivo</h3>
+            <div className="space-y-3">
+              {Object.values(room.players)
+                .filter(p => !p.isHost) // Only show actual players
+                .sort((a, b) => (a.roundPosition || 999) - (b.roundPosition || 999))
+                .map(p => (
+                <div key={p.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="font-bold text-xl text-slate-800">{p.name}</span>
+                  {p.finishedTime ? (
+                    <span className="text-green-500 font-black flex items-center gap-2"><CheckCircle /> ¡Terminó! (#{p.roundPosition})</span>
+                  ) : (
+                    <span className="text-slate-400 font-bold flex items-center gap-2"><PenTool size={18} /> Resolviendo...</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         <button onClick={handleEndRound} className="mt-8 text-red-500 font-bold underline hover:text-red-700">Forzar fin de ronda</button>
       </div>
@@ -175,13 +254,17 @@ export default function Game() {
           <div className="bg-green-50 border-2 border-green-200 text-green-700 p-8 rounded-3xl text-center shadow-xl max-w-md w-full">
             <CheckCircle size={80} className="mx-auto mb-4 text-green-500" />
             <h2 className="text-3xl font-black mb-2 text-green-700">¡Puzle Completado!</h2>
-            <p className="font-bold text-xl text-green-600">Llegaste en la posición #{myPlayer.roundPosition}</p>
+            {collage ? (
+              <p className="font-bold text-xl text-green-600">¡Módulo completado!</p>
+            ) : (
+              <p className="font-bold text-xl text-green-600">Llegaste en la posición #{myPlayer.roundPosition}</p>
+            )}
             <p className="mt-4 text-green-600/70 font-bold">Esperando a que los demás terminen...</p>
           </div>
         </div>
       ) : (
         <>
-          <PicrossBoard puzzle={puzzle} onComplete={handleComplete} />
+          <PicrossBoard puzzle={puzzle} onComplete={handleComplete} onChange={handleGridChange} />
         </>
       )}
     </div>

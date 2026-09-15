@@ -16,6 +16,24 @@ export interface PicrossPuzzle {
   colClues: Clue[][];
 }
 
+export interface CollageSection {
+  row: number;
+  col: number;
+  solution: PuzzleGrid;
+  rowClues: Clue[][];
+  colClues: Clue[][];
+}
+
+export interface CollagePuzzle {
+  id: string;
+  type: 'collage';
+  name: string;
+  modulesX: number;
+  modulesY: number;
+  moduleSize: number;
+  sections: CollageSection[];
+}
+
 /**
  * Generates the clues for a given 2D array of colors.
  */

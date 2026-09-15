@@ -1,6 +1,7 @@
 import { ref, set, get, onValue, update, onDisconnect } from "firebase/database";
 import { db } from "./firebase";
 import { PREDEFINED_LEVELS } from "./levels";
+import { COLLAGES } from "./collages";
 
 export interface Player {
   id: string;
@@ -11,6 +12,7 @@ export interface Player {
   vote?: string | null;
   finishedTime?: number | null;
   roundPosition?: number;
+  grid?: (string | null)[][]; // Real-time grid sync for collage
 }
 
 export interface RoomData {
@@ -21,6 +23,7 @@ export interface RoomData {
   currentPuzzleId?: string | null;
   puzzleOptions?: string[];
   playedPuzzles?: string[];
+  collageAssignments?: Record<string, number>;
   suddenDeathEndTime?: number | null;
   players: Record<string, Player>;
   hostIsPlaying: boolean;
@@ -119,12 +122,15 @@ export async function startVoting(roomId: string) {
   const data = snap.val() as RoomData;
   const played = data.playedPuzzles || [];
   
+  // Merge normal levels and collages
+  const allLevels = [...PREDEFINED_LEVELS.map(l => l.id), ...COLLAGES.map(c => c.id)];
+
   // Use actual level IDs from our levels list, excluding played if possible
-  let keys = PREDEFINED_LEVELS.map(l => l.id).filter(id => !played.includes(id));
+  let keys = allLevels.filter(id => !played.includes(id));
   
   // If we've played all available puzzles, just allow all of them again
   if (keys.length === 0) {
-    keys = PREDEFINED_LEVELS.map(l => l.id);
+    keys = allLevels;
   }
   
   const shuffled = keys.sort(() => 0.5 - Math.random());

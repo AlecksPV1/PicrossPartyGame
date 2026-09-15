@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { type RoomData, subscribeToRoom, getLocalPlayerId } from '../lib/room';
 import { PREDEFINED_LEVELS } from '../lib/levels';
+import { COLLAGES } from '../lib/collages';
 import { ref, update } from 'firebase/database';
 import { db } from '../lib/firebase';
 import clsx from 'clsx';
@@ -97,12 +98,34 @@ export default function Voting() {
       playedPuzzles.push(winningPuzzle);
     }
 
-    const roomRef = ref(db, `rooms/${roomId}`);
-    await update(roomRef, {
+    const updates: Partial<RoomData> = {
       state: 'playing',
       currentPuzzleId: winningPuzzle,
-      playedPuzzles
-    });
+      playedPuzzles,
+      collageAssignments: {} // Reset assignments
+    };
+
+    // If it's a collage, assign sections to players
+    const collage = COLLAGES.find(c => c.id === winningPuzzle);
+    if (collage) {
+      const playingPlayers = Object.values(room.players).filter(p => !p.isHost || room.hostIsPlaying);
+      const assignments: Record<string, number> = {}; // playerId -> sectionIndex
+      
+      const numSections = collage.sections.length;
+      
+      // Shuffle players and assign each section circularly
+      const shuffledPlayers = [...playingPlayers].sort(() => 0.5 - Math.random());
+      
+      shuffledPlayers.forEach((p, idx) => {
+        // Wrap around if more players than sections
+        assignments[p.id] = idx % numSections;
+      });
+
+      updates.collageAssignments = assignments;
+    }
+
+    const roomRef = ref(db, `rooms/${roomId}`);
+    await update(roomRef, updates);
   };
 
   if (!room) return <div className="flex-1 flex items-center justify-center font-bold text-slate-500">Cargando...</div>;
@@ -123,7 +146,9 @@ export default function Voting() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
         {(room.puzzleOptions || []).map(key => {
-          const level = PREDEFINED_LEVELS.find(l => l.id === key);
+          const normal = PREDEFINED_LEVELS.find(l => l.id === key);
+          const collage = COLLAGES.find(c => c.id === key);
+          const level = normal || collage;
           if (!level) return null;
           
           let voteCount = 0;

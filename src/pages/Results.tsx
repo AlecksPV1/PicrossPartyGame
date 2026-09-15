@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { type RoomData, subscribeToRoom, getLocalPlayerId, startVoting } from '../lib/room';
+import { COLLAGES } from '../lib/collages';
 import { Forward, Crown } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -67,6 +68,61 @@ export default function Results() {
       <p className="text-slate-500 mb-8 font-bold">
         {isFinal ? '¡La fiesta ha terminado!' : `Ronda completada ${room.currentRound}`}
       </p>
+
+      {room.currentPuzzleId && COLLAGES.find(c => c.id === room.currentPuzzleId) && (() => {
+        const collage = COLLAGES.find(c => c.id === room.currentPuzzleId)!;
+        return (
+          <div className="mb-8 flex flex-col items-center">
+            <h3 className="text-xl font-bold mb-4 text-slate-800">Obra Maestra del Equipo</h3>
+            <div 
+              className="bg-slate-300 gap-px p-1 rounded-xl shadow-lg"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${collage.modulesX * collage.moduleSize}, 12px)`,
+                gridTemplateRows: `repeat(${collage.modulesY * collage.moduleSize}, 12px)`
+              }}
+            >
+              {Array.from({ length: collage.modulesY * collage.moduleSize * collage.modulesX * collage.moduleSize }).map((_, i) => {
+                const totalCols = collage.modulesX * collage.moduleSize;
+                const R = Math.floor(i / totalCols);
+                const C = i % totalCols;
+
+                const sR = Math.floor(R / collage.moduleSize);
+                const sC = Math.floor(C / collage.moduleSize);
+                const lR = R % collage.moduleSize;
+                const lC = C % collage.moduleSize;
+
+                const sectionIndex = collage.sections.findIndex(s => s.row === sR && s.col === sC);
+                
+                let assignedPlayer = null;
+                for (const uid in room.collageAssignments) {
+                  if (room.collageAssignments[uid] === sectionIndex) {
+                    assignedPlayer = room.players[uid];
+                    break;
+                  }
+                }
+
+                let color = null;
+                if (assignedPlayer) {
+                  if (assignedPlayer.finishedTime) {
+                    color = collage.sections[sectionIndex].solution[lR][lC];
+                  } else if (assignedPlayer.grid?.[lR]?.[lC]) {
+                    color = assignedPlayer.grid[lR][lC];
+                  }
+                }
+
+                return (
+                  <div 
+                    key={i} 
+                    className="w-full h-full bg-white"
+                    style={{ backgroundColor: color || 'white' }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {isFinal && (
         <div className="flex flex-col items-center justify-center mb-8 animate-bounce">
