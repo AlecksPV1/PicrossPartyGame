@@ -147,6 +147,14 @@ export default function Home() {
               <span>CREAR SALA COMO HOST</span>
             </button>
           </div>
+          
+          <button 
+            onClick={() => navigate('/editor')}
+            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md mt-4"
+          >
+            <Gamepad2 size={20} />
+            <span>ABRIR CREADOR DE NIVELES</span>
+          </button>
         </div>
       </div>
     </div>
