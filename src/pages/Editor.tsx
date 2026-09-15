@@ -3,6 +3,7 @@ import { generateClues, type PuzzleGrid } from '../lib/picross';
 import { ArrowLeft, Plus, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import ImageImporter from '../components/ImageImporter';
 
 export default function Editor() {
   const navigate = useNavigate();
@@ -166,18 +167,39 @@ export default function Editor() {
               >
                 <Plus size={20} />
               </button>
+              
+              <button 
+                onClick={() => setActiveColor('erase')}
+                className={clsx(
+                  "w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 transition-colors ml-auto",
+                  activeColor === 'erase' ? "bg-red-100 border-red-500 text-red-700 shadow-md scale-110" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                )}
+                title="Borrador"
+              >
+                X
+              </button>
             </div>
-            
-            <button 
-              onClick={() => setActiveColor('erase')}
-              className={clsx(
-                "mt-4 w-full py-2 rounded-xl font-bold border-2 transition-colors",
-                activeColor === 'erase' ? "bg-red-100 border-red-500 text-red-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-              )}
-            >
-              Borrador
-            </button>
           </div>
+
+          {/* Subcomponent for Image Import */}
+          <ImageImporter 
+            gridSize={size} 
+            onImport={(pixels, importedColors) => {
+              setGrid(pixels);
+              
+              // Merge imported colors with existing ones
+              setColors(prev => {
+                const s = new Set([...prev, ...importedColors]);
+                // Limit to roughly 12 colors so palette doesn't overflow wildly
+                return Array.from(s).slice(0, 16);
+              });
+              
+              // Switch to the first imported color or erase
+              if (importedColors.length > 0) {
+                setActiveColor(importedColors[0]);
+              }
+            }} 
+          />
         </div>
 
         {/* Editor Grid */}
