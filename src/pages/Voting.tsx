@@ -102,26 +102,29 @@ export default function Voting() {
       state: 'playing',
       currentPuzzleId: winningPuzzle,
       playedPuzzles,
-      collageAssignments: {} // Reset assignments
+      collageProgress: {
+        activeAssignments: {},
+        completedSections: {}
+      } // Reset progress
     };
 
-    // If it's a collage, assign sections to players
+    // If it's a collage, assign initial sections to players
     const collage = COLLAGES.find(c => c.id === winningPuzzle);
     if (collage) {
       const playingPlayers = Object.values(room.players).filter(p => !p.isHost || room.hostIsPlaying);
-      const assignments: Record<string, number> = {}; // playerId -> sectionIndex
+      const assignments: Record<string, number> = {}; 
       
       const numSections = collage.sections.length;
-      
-      // Shuffle players and assign each section circularly
       const shuffledPlayers = [...playingPlayers].sort(() => 0.5 - Math.random());
       
       shuffledPlayers.forEach((p, idx) => {
-        // Wrap around if more players than sections
         assignments[p.id] = idx % numSections;
       });
 
-      updates.collageAssignments = assignments;
+      updates.collageProgress = {
+        activeAssignments: assignments,
+        completedSections: {}
+      };
     }
 
     const roomRef = ref(db, `rooms/${roomId}`);

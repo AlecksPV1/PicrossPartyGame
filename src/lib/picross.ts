@@ -34,6 +34,36 @@ export interface CollagePuzzle {
   sections: CollageSection[];
 }
 
+export function generateRandomPuzzle(size: number, colorCount: number = 2): PicrossPuzzle {
+  const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'].sort(() => Math.random() - 0.5).slice(0, colorCount);
+  
+  const grid: PuzzleGrid = [];
+  for (let r = 0; r < size; r++) {
+    const row: CellColor[] = [];
+    for (let c = 0; c < size; c++) {
+      // 60% chance of being filled
+      if (Math.random() > 0.4) {
+        row.push(colors[Math.floor(Math.random() * colors.length)]);
+      } else {
+        row.push(null);
+      }
+    }
+    grid.push(row);
+  }
+  
+  const { rowClues, colClues } = generateClues(grid);
+  
+  return {
+    id: `random_${Date.now()}`,
+    name: `Frenesí ${size}x${size}`,
+    width: size,
+    height: size,
+    solution: grid,
+    rowClues,
+    colClues
+  };
+}
+
 /**
  * Generates the clues for a given 2D array of colors.
  */

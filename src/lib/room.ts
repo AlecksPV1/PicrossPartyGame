@@ -12,7 +12,7 @@ export interface Player {
   vote?: string | null;
   finishedTime?: number | null;
   roundPosition?: number;
-  grid?: (string | null)[][]; // Real-time grid sync for collage
+  grid?: (string | null)[][] | null; // Real-time grid sync for collage
 }
 
 export interface RoomData {
@@ -23,8 +23,14 @@ export interface RoomData {
   currentPuzzleId?: string | null;
   puzzleOptions?: string[];
   playedPuzzles?: string[];
-  collageAssignments?: Record<string, number>;
+  collageProgress?: {
+    activeAssignments: Record<string, number>;
+    completedSections: Record<number, string>;
+  };
   suddenDeathEndTime?: number | null;
+  gameMode?: 'classic' | 'frenzy' | 'masterpiece';
+  frenzyEndTime?: number | null;
+  masterpieceId?: string | null;
   players: Record<string, Player>;
   hostIsPlaying: boolean;
 }
@@ -122,8 +128,13 @@ export async function startVoting(roomId: string) {
   const data = snap.val() as RoomData;
   const played = data.playedPuzzles || [];
   
-  // Merge normal levels and collages
-  const allLevels = [...PREDEFINED_LEVELS.map(l => l.id), ...COLLAGES.map(c => c.id)];
+  let allLevels: string[] = [];
+  if (data.gameMode === 'masterpiece') {
+    allLevels = COLLAGES.map(c => c.id);
+  } else {
+    // classic
+    allLevels = [...PREDEFINED_LEVELS.map(l => l.id), ...COLLAGES.map(c => c.id)];
+  }
 
   // Use actual level IDs from our levels list, excluding played if possible
   let keys = allLevels.filter(id => !played.includes(id));
@@ -148,6 +159,33 @@ export async function startVoting(roomId: string) {
   await update(roomRef, {
     state: 'voting',
     puzzleOptions: options,
+    players,
+    suddenDeathEndTime: null
+  });
+}
+
+export async function startFrenzy(roomId: string, timeLimitMs: number = 3 * 60 * 1000) {
+  const roomRef = ref(db, `rooms/${roomId}`);
+  const snap = await get(roomRef);
+  
+  if (!snap.exists()) return;
+  const data = snap.val() as RoomData;
+  
+  // Reset player votes and finished state
+  const players = { ...data.players };
+  for (const uid in players) {
+    players[uid].vote = null;
+    players[uid].finishedTime = null;
+    players[uid].roundPosition = 0;
+    players[uid].grid = null; // Important to reset their board
+    // In Frenzy, we don't reset their score between "puzzles" since frenzy is one giant round, 
+    // but we do reset their score when the Frenzy round STARTS from the lobby.
+    players[uid].score = 0; 
+  }
+  
+  await update(roomRef, {
+    state: 'playing', // Go straight to playing
+    frenzyEndTime: Date.now() + timeLimitMs,
     players,
     suddenDeathEndTime: null
   });

@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, Play, Crown } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
-import { type RoomData, subscribeToRoom, getLocalPlayerId, startVoting } from '../lib/room';
+import { type RoomData, subscribeToRoom, getLocalPlayerId, startVoting, startFrenzy } from '../lib/room';
 
 export default function Lobby() {
   const { roomId } = useParams();
@@ -50,7 +50,11 @@ export default function Lobby() {
 
   const handleStartVoting = async () => {
     if (isHost && roomId) {
-      await startVoting(roomId);
+      if (room.gameMode === 'frenzy') {
+        await startFrenzy(roomId); // default 3 minutes
+      } else {
+        await startVoting(roomId);
+      }
     }
   };
 
@@ -106,6 +110,53 @@ export default function Lobby() {
             ))}
           </div>
 
+          {isHost && (
+            <div className="mt-6 bg-white rounded-3xl shadow-xl border border-slate-200 p-4">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">Modo de Juego</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <button 
+                  onClick={async () => {
+                    const { ref, update } = await import('firebase/database');
+                    const { db } = await import('../lib/firebase');
+                    await update(ref(db, `rooms/${roomId}`), { gameMode: 'classic' });
+                  }}
+                  className={`p-3 rounded-xl border-2 font-bold text-sm transition-colors ${room.gameMode === 'classic' || !room.gameMode ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-indigo-300'}`}
+                >
+                  Clásico
+                </button>
+                <button 
+                  onClick={async () => {
+                    const { ref, update } = await import('firebase/database');
+                    const { db } = await import('../lib/firebase');
+                    await update(ref(db, `rooms/${roomId}`), { gameMode: 'frenzy' });
+                  }}
+                  className={`p-3 rounded-xl border-2 font-bold text-sm transition-colors ${room.gameMode === 'frenzy' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'border-slate-200 text-slate-500 hover:border-orange-300'}`}
+                >
+                  Frenesí
+                </button>
+                <button 
+                  onClick={async () => {
+                    const { ref, update } = await import('firebase/database');
+                    const { db } = await import('../lib/firebase');
+                    await update(ref(db, `rooms/${roomId}`), { gameMode: 'masterpiece' });
+                  }}
+                  className={`p-3 rounded-xl border-2 font-bold text-sm transition-colors ${room.gameMode === 'masterpiece' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-emerald-300'}`}
+                >
+                  Grandes Obras
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isHost && (
+             <div className="mt-6 bg-white rounded-3xl shadow-xl border border-slate-200 p-4 text-center">
+               <span className="text-sm font-bold text-slate-500 uppercase">Modo Seleccionado</span>
+               <div className="text-xl font-black text-indigo-600 mt-1">
+                 {room.gameMode === 'frenzy' ? 'Frenesí' : room.gameMode === 'masterpiece' ? 'Grandes Obras' : 'Clásico'}
+               </div>
+             </div>
+          )}
+
           {isHost ? (
             <button 
               onClick={handleStartVoting}
@@ -113,7 +164,7 @@ export default function Lobby() {
               className="mt-6 w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg transition-transform active:scale-95 disabled:opacity-50"
             >
               <Play size={24} />
-              <span>Empezar Votación</span>
+              <span>{room.gameMode === 'frenzy' ? 'Empezar Frenesí' : 'Empezar Votación'}</span>
             </button>
           ) : (
             <div className="mt-6 w-full text-center p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-2xl font-bold animate-pulse shadow-sm">

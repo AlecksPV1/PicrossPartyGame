@@ -95,20 +95,14 @@ export default function Results() {
                 const sectionIndex = collage.sections.findIndex(s => s.row === sR && s.col === sC);
                 
                 let assignedPlayer = null;
-                for (const uid in room.collageAssignments) {
-                  if (room.collageAssignments[uid] === sectionIndex) {
-                    assignedPlayer = room.players[uid];
-                    break;
-                  }
+                const completedByUid = room.collageProgress?.completedSections?.[sectionIndex];
+                if (completedByUid) {
+                  assignedPlayer = room.players[completedByUid];
                 }
 
                 let color = null;
                 if (assignedPlayer) {
-                  if (assignedPlayer.finishedTime) {
-                    color = collage.sections[sectionIndex].solution[lR][lC];
-                  } else if (assignedPlayer.grid?.[lR]?.[lC]) {
-                    color = assignedPlayer.grid[lR][lC];
-                  }
+                  color = collage.sections[sectionIndex].solution[lR][lC];
                 }
 
                 return (
@@ -161,10 +155,21 @@ export default function Results() {
         <div className="mt-12">
           {isFinal ? (
             <button 
-              onClick={() => navigate('/')}
-              className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 px-10 rounded-2xl shadow-xl text-xl flex items-center gap-2"
+              onClick={async () => {
+                if (!roomId || !room) return;
+                const { ref, update } = await import('firebase/database');
+                const { db } = await import('../lib/firebase');
+                const roomRef = ref(db, `rooms/${roomId}`);
+                await update(roomRef, {
+                  state: 'lobby',
+                  currentRound: 1,
+                  playedPuzzles: [],
+                  collageProgress: null
+                });
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-10 rounded-2xl shadow-xl text-xl flex items-center gap-2"
             >
-              Volver al Inicio
+              Jugar de Nuevo
             </button>
           ) : (
             <button 

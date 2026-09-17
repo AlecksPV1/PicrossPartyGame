@@ -6,7 +6,7 @@ import clsx from 'clsx';
 type InteractiveCell = { state: 'empty' | 'marked' | 'filled', color: string | null };
 type InteractiveGrid = InteractiveCell[][];
 
-export default function PicrossBoard({ puzzle, onComplete, onChange }: { puzzle: PicrossPuzzle, onComplete: () => void, onChange?: (grid: (string | null)[][]) => void }) {
+export default function PicrossBoard({ puzzle, saveKey, onComplete, onChange }: { puzzle: PicrossPuzzle, saveKey?: string, onComplete: () => void, onChange?: (grid: (string | null)[][]) => void }) {
   const [grid, setGrid] = useState<InteractiveGrid>([]);
   const [activeColor, setActiveColor] = useState<string>('');
   
@@ -27,14 +27,15 @@ export default function PicrossBoard({ puzzle, onComplete, onChange }: { puzzle:
 
   useEffect(() => {
     // Load from local storage or create empty
-    const saved = localStorage.getItem(`picross_${puzzle.id}`);
+    const key = saveKey || puzzle.id;
+    const saved = localStorage.getItem(`picross_${key}`);
     if (saved) {
       setGrid(JSON.parse(saved));
     } else {
       const emptyGrid: InteractiveGrid = Array(height).fill(null).map(() => Array(width).fill({ state: 'empty', color: null }));
       setGrid(emptyGrid);
     }
-  }, [puzzle.id, height, width]);
+  }, [puzzle.id, height, width, saveKey]);
 
   useEffect(() => {
     if (uniqueColors.length > 0 && !uniqueColors.includes(activeColor)) {
@@ -51,8 +52,9 @@ export default function PicrossBoard({ puzzle, onComplete, onChange }: { puzzle:
 
   useEffect(() => {
     // Save to localStorage
-    localStorage.setItem(`picross_${puzzle.id}`, JSON.stringify(grid));
-  }, [grid, puzzle.id]);
+    const key = saveKey || puzzle.id;
+    localStorage.setItem(`picross_${key}`, JSON.stringify(grid));
+  }, [grid, puzzle.id, saveKey]);
 
   useEffect(() => {
     const handleMouseUp = () => setIsDrawing(false);
