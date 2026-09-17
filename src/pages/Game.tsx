@@ -35,9 +35,16 @@ export default function Game() {
   
   useEffect(() => {
     if (room?.gameMode === 'frenzy' && !frenzyPuzzle) {
-      setFrenzyPuzzle(generateRandomPuzzle(5, 2));
+      const myScore = room.players?.[localPlayerId]?.score || 0;
+      const completedCount = Math.floor(myScore / 10);
+      const cappedCount = Math.min(completedCount, 11);
+      
+      const nextSize = 5 + Math.floor(cappedCount / 4) * 5;
+      const nextColors = 1 + (cappedCount % 4);
+      
+      setFrenzyPuzzle(generateRandomPuzzle(nextSize, nextColors));
     }
-  }, [room?.gameMode, frenzyPuzzle]);
+  }, [room?.gameMode, frenzyPuzzle, room?.players, localPlayerId]);
 
   const { puzzle, collage } = useMemo(() => {
     if (room?.gameMode === 'frenzy') {
@@ -171,9 +178,13 @@ export default function Game() {
       const newScore = (room.players[localPlayerId]?.score || 0) + 10;
       await update(ref(db), { [`rooms/${roomId}/players/${localPlayerId}/score`]: newScore });
       
-      const curSize = frenzyPuzzle?.width || 5;
-      const nextSize = curSize < 15 ? curSize + 5 : 15;
-      setFrenzyPuzzle(generateRandomPuzzle(nextSize, nextSize === 5 ? 2 : nextSize === 10 ? 3 : 4));
+      const completedCount = Math.floor(newScore / 10);
+      const cappedCount = Math.min(completedCount, 11);
+      
+      const nextSize = 5 + Math.floor(cappedCount / 4) * 5; // 5, 10, 15
+      const nextColors = 1 + (cappedCount % 4); // 1, 2, 3, 4
+      
+      setFrenzyPuzzle(generateRandomPuzzle(nextSize, nextColors));
       return;
     }
 
