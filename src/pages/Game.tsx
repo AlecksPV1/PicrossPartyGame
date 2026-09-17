@@ -365,6 +365,7 @@ export default function Game() {
       ) : (
         <>
           <PicrossBoard 
+            key={puzzle.id}
             puzzle={puzzle} 
             saveKey={`${roomId}_${room.currentRound}_${puzzle.id}`}
             onComplete={handleComplete} 
