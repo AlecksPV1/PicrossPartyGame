@@ -14,7 +14,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   
   // Host Configuration
-  const [rounds, setRounds] = useState(3);
+  const [rounds] = useState(3);
   const [hostIsPlaying, setHostIsPlaying] = useState(true);
 
   const handleCreateRoom = async () => {
@@ -113,19 +113,7 @@ export default function Home() {
           </div>
 
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-600 mb-1">Rondas</label>
-              <select 
-                value={rounds} 
-                onChange={e => setRounds(Number(e.target.value))}
-                className="w-full bg-white border-2 border-slate-200 text-slate-800 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-indigo-500"
-              >
-                <option value={1}>1 Ronda</option>
-                <option value={3}>3 Rondas</option>
-                <option value={5}>5 Rondas</option>
-              </select>
-            </div>
-            
+
             <div>
               <label className="block text-sm font-bold text-slate-600 mb-1">Rol del Host</label>
               <select 

@@ -197,3 +197,47 @@ export async function submitPuzzle(roomId: string, playerId: string, finishedTim
     finishedTime: finishedTime
   });
 }
+
+export async function startMasterpiece(roomId: string) {
+  const roomRef = ref(db, `rooms/${roomId}`);
+  const snap = await get(roomRef);
+  
+  if (!snap.exists()) return;
+  const data = snap.val() as RoomData;
+  
+  // Pick a random collage
+  const collage = COLLAGES[Math.floor(Math.random() * COLLAGES.length)];
+  if (!collage) return;
+  
+  // Reset players
+  const players = { ...data.players };
+  const playerIds = Object.keys(players);
+  
+  // Build initial assignments: each player gets one section
+  const assignments: Record<string, number> = {};
+  let sectionIdx = 0;
+  for (const uid of playerIds) {
+    players[uid].vote = null;
+    players[uid].finishedTime = null;
+    players[uid].roundPosition = 0;
+    players[uid].grid = null;
+    players[uid].score = 0;
+    
+    if (sectionIdx < collage.sections.length) {
+      assignments[uid] = sectionIdx;
+      sectionIdx++;
+    }
+  }
+  
+  await update(roomRef, {
+    state: 'playing',
+    currentPuzzleId: collage.id,
+    masterpieceId: collage.id,
+    players,
+    suddenDeathEndTime: null,
+    collageProgress: {
+      activeAssignments: assignments,
+      completedSections: {}
+    }
+  });
+}

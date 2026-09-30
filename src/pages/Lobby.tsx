@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, Play, Crown } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
-import { type RoomData, subscribeToRoom, getLocalPlayerId, startVoting, startFrenzy } from '../lib/room';
+import { type RoomData, subscribeToRoom, getLocalPlayerId, startVoting, startFrenzy, startMasterpiece } from '../lib/room';
 
 export default function Lobby() {
   const { roomId } = useParams();
@@ -51,7 +51,9 @@ export default function Lobby() {
   const handleStartVoting = async () => {
     if (isHost && roomId) {
       if (room.gameMode === 'frenzy') {
-        await startFrenzy(roomId); // default 3 minutes
+        await startFrenzy(roomId);
+      } else if (room.gameMode === 'masterpiece') {
+        await startMasterpiece(roomId);
       } else {
         await startVoting(roomId);
       }
@@ -145,6 +147,25 @@ export default function Lobby() {
                   Grandes Obras
                 </button>
               </div>
+              
+              {(!room.gameMode || room.gameMode === 'classic') && (
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-slate-600 mb-1">Rondas</label>
+                  <select 
+                    value={room.totalRounds || 3} 
+                    onChange={async (e) => {
+                      const { ref, update } = await import('firebase/database');
+                      const { db } = await import('../lib/firebase');
+                      await update(ref(db, `rooms/${roomId}`), { totalRounds: Number(e.target.value) });
+                    }}
+                    className="w-full bg-slate-50 border-2 border-slate-200 text-slate-800 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value={1}>1 Ronda</option>
+                    <option value={3}>3 Rondas</option>
+                    <option value={5}>5 Rondas</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -164,7 +185,7 @@ export default function Lobby() {
               className="mt-6 w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg transition-transform active:scale-95 disabled:opacity-50"
             >
               <Play size={24} />
-              <span>{room.gameMode === 'frenzy' ? 'Empezar Frenesí' : 'Empezar Votación'}</span>
+              <span>{room.gameMode === 'frenzy' ? 'Empezar Frenesí' : room.gameMode === 'masterpiece' ? 'Empezar Obra' : 'Empezar Votación'}</span>
             </button>
           ) : (
             <div className="mt-6 w-full text-center p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-2xl font-bold animate-pulse shadow-sm">
