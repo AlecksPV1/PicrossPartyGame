@@ -148,13 +148,22 @@ export default function Home() {
             </button>
           </div>
           
-          <button 
-            onClick={() => navigate('/editor')}
-            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md mt-4"
-          >
-            <Gamepad2 size={20} />
-            <span>ABRIR CREADOR DE NIVELES</span>
-          </button>
+          <div className="flex gap-2 mt-4">
+            <button 
+              onClick={() => navigate('/editor')}
+              className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-black py-3 px-2 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md text-sm"
+            >
+              <Gamepad2 size={16} />
+              <span>CREADOR</span>
+            </button>
+            <button 
+              onClick={() => navigate('/tutorial')}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-black py-3 px-2 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md text-sm"
+            >
+              <Gamepad2 size={16} />
+              <span>TUTORIAL</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

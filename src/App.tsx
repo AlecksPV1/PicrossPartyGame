@@ -5,6 +5,7 @@ import Lobby from './pages/Lobby';
 import Voting from './pages/Voting';
 import Results from './pages/Results';
 import Editor from './pages/Editor';
+import Tutorial from './pages/Tutorial';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/game/:roomId" element={<Game />} />
             <Route path="/results/:roomId" element={<Results />} />
             <Route path="/editor" element={<Editor />} />
+            <Route path="/tutorial" element={<Tutorial />} />
           </Routes>
         </main>
       </div>
